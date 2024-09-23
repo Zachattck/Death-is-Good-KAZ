@@ -1,9 +1,14 @@
+
+local game = require("game")  -- Assuming game.lua is in the same directory as main.lua
+
+
+
 -- Game states
 local currentState = "menu" -- Initially in the menu state
 local selectedOption = 1    -- Track selected menu option
 
 -- Screen settings
-local screenWidth, screenHeight = 800, 600
+local screenWidth, screenHeight = 1920, 1080
 
 -- List of menu options (images)
 local menuOptions = {}
@@ -47,9 +52,11 @@ end
 
 function love.draw()
     if currentState == "menu" then
+        -- Menu drawing logic
         drawMenu()
     elseif currentState == "playing" then
-        drawGame()
+        -- Call draw logic from game.lua
+        Game.draw()
     end
 end
 
@@ -67,23 +74,34 @@ function drawMenu()
     local imageWidth = titleImage:getWidth()
     local imageHeight = titleImage:getHeight()
     love.graphics.draw(titleImage, (screenWidth - imageWidth) / 2, 50)
-    
+
+    -- Set the scale for the menu option images
+    local scale = 0.5  -- Adjust this value to make images smaller or larger
+
     -- Draw menu option images (Start and Exit)
     for i, option in ipairs(menuOptions) do
-        local x = (screenWidth - option:getWidth()) / 2
+        -- Get the original width and height of the images
+        local optionWidth = option:getWidth() * scale
+        local optionHeight = option:getHeight() * scale
+
+        -- Calculate the position to center the scaled images
+        local x = (screenWidth - optionWidth) / 2
         local y = 200 + i * 100
 
+        -- Highlight the selected option by changing color or adding a border (optional)
         if i == selectedOption then
-            -- Highlight the selected option by changing color or adding a border (optional)
-            love.graphics.setColor(1, 0, 0)
+            love.graphics.setColor(1, 0, 0)  -- Highlight selected option in red
         else
-            love.graphics.setColor(1, 1, 1)
+            love.graphics.setColor(1, 1, 1)  -- Normal color for unselected options
         end
-        love.graphics.draw(option, x, y)
+
+        -- Draw the image with scaling applied
+        love.graphics.draw(option, x, y, 0, scale, scale)
     end
-    
+
     love.graphics.setColor(1, 1, 1) -- Reset color
 end
+
 
 function updateMenu()
     -- Placeholder for any logic if needed
@@ -111,9 +129,8 @@ end
 
 -- Game functions (these are placeholders for your actual game)
 function updateGame(dt)
-    -- Game logic here
+
+Game.update(dt)
+
 end
 
-function drawGame()
-    love.graphics.draw(levelImage, 0, 0)
-end
