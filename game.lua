@@ -5,6 +5,12 @@ function game.load()
     -- put loading code here for draw functions
 end
 
+
+function handleGameInput(key)
+    -- put input code here
+end
+
+
 function game.update(dt)
 
     -- update code here
