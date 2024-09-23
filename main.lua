@@ -1,8 +1,6 @@
 
 local game = require("game")  -- Assuming game.lua is in the same directory as main.lua
 
-
-
 -- Game states
 local currentState = "menu" -- Initially in the menu state
 local selectedOption = 1    -- Track selected menu option
@@ -20,6 +18,7 @@ local backgroundMusic
 local levelImage 
 -- Love2D callbacks
 function love.load()
+    
     -- Set screen size
     love.window.setMode(screenWidth, screenHeight)
     
@@ -40,6 +39,7 @@ function love.load()
     backgroundMusic = love.audio.newSource("assets/background_music.mp3", "stream")
     backgroundMusic:setLooping(true)
     love.audio.play(backgroundMusic)
+    game.load()
 end
 
 function love.update(dt)
@@ -56,7 +56,7 @@ function love.draw()
         drawMenu()
     elseif currentState == "playing" then
         -- Call draw logic from game.lua
-        Game.draw()
+        game.draw()
     end
 end
 
@@ -130,7 +130,5 @@ end
 -- Game functions (these are placeholders for your actual game)
 function updateGame(dt)
 
-Game.update(dt)
-
+game.update(dt)
 end
-
