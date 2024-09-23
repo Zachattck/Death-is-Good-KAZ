@@ -5,4 +5,5 @@ function love.update()
 end
 
 function love.draw()
+    drawdesign()
 end
