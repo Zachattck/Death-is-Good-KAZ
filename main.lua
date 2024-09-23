@@ -20,11 +20,15 @@ local levelImage
 -- Options menu settings
 local selectedOptionOption = 1  -- Track selected option in the options menu
 local volume = 1  -- Music volume (1 = max, 0 = mute)
+local volumeBarX, volumeBarY = 300, 250  -- Position of the volume bar
+local volumeBarWidth, volumeBarHeight = 300, 20  -- Size of the volume bar
+local volumeHandleRadius = 10 -- Handle size for the volume adjustment
 
 -- Mouse hover tracking for menu options
 local isHoveringStart = false
 local isHoveringOptions = false
 local isHoveringExit = false
+local isDraggingVolume = false  -- Track if volume handle is being dragged
 
 -- Love2D callbacks
 function love.load()
@@ -56,10 +60,16 @@ end
 function love.update(dt)
     if currentState == "menu" then
         updateMenu()
-    elseif currentState == "options" then
-        updateOptionsMenu()
     elseif currentState == "playing" then
         updateGame(dt)
+    end
+
+    -- Update volume bar dragging
+    if isDraggingVolume then
+        local mouseX = love.mouse.getX()
+        -- Calculate new volume based on the mouse's position on the volume bar
+        volume = math.min(math.max((mouseX - volumeBarX) / volumeBarWidth, 0), 1)
+        backgroundMusic:setVolume(volume)
     end
 end
 
@@ -82,8 +92,20 @@ function love.mousepressed(x, y, button)
         if currentState == "menu" then
             handleMenuMouseInput(x, y)
         elseif currentState == "options" then
-            handleOptionsMenuMouseInput(x, y)
+            -- Check if the user clicked the volume handle or bar to start dragging
+            if isMouseOverVolumeHandle(x, y) then
+                isDraggingVolume = true
+            else
+                handleOptionsMenuMouseInput(x, y)
+            end
         end
+    end
+end
+
+function love.mousereleased(x, y, button)
+    if button == 1 then
+        -- Stop dragging the volume handle
+        isDraggingVolume = false
     end
 end
 
@@ -153,11 +175,21 @@ end
 function drawOptionsMenu()
     love.graphics.printf("Options Menu", 0, 100, love.graphics.getWidth(), "center")
 
-    -- Draw volume option
-    local volumeText = "Music Volume: " .. math.floor(volume * 100) .. "%"
-    love.graphics.printf(volumeText, 0, 200, love.graphics.getWidth(), "center")
+    -- Draw volume option and bar
+    love.graphics.printf("Music Volume", 0, 200, love.graphics.getWidth(), "center")
 
-    -- Highlight selected option
+    -- Draw volume bar background
+    love.graphics.setColor(0.5, 0.5, 0.5)
+    love.graphics.rectangle("fill", volumeBarX, volumeBarY, volumeBarWidth, volumeBarHeight)
+
+    -- Draw volume handle
+    local handleX = volumeBarX + (volume * volumeBarWidth)
+    love.graphics.setColor(1, 0, 0)  -- Red for the handle
+    love.graphics.circle("fill", handleX, volumeBarY + volumeBarHeight / 2, volumeHandleRadius)
+
+    love.graphics.setColor(1, 1, 1)  -- Reset color
+
+    -- Draw Back to Menu option
     love.graphics.printf("Back to Menu", 0, 300, love.graphics.getWidth(), "center")
 end
 
@@ -176,7 +208,15 @@ function isMouseOverButton(mouseX, mouseY, image, buttonX, buttonY, scale)
     return mouseX >= buttonX and mouseX <= buttonX + buttonWidth and mouseY >= buttonY and mouseY <= buttonY + buttonHeight
 end
 
+-- Check if the mouse is over the volume handle
+function isMouseOverVolumeHandle(mouseX, mouseY)
+    local handleX = volumeBarX + (volume * volumeBarWidth)
+    return math.abs(mouseX - handleX) <= volumeHandleRadius and mouseY >= volumeBarY and mouseY <= volumeBarY + volumeBarHeight
+end
+
 -- Game functions (in game.lua)
 function updateGame(dt)
     game.update(dt)
 end
+
+
