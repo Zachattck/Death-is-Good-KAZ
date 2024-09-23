@@ -64,7 +64,7 @@ function love.keypressed(key)
     if currentState == "menu" then
         handleMenuInput(key)
     elseif currentState == "playing" then
-        game.handleGameInput(key)
+        -- Add game controls here, like player movement
     end
 end
 
