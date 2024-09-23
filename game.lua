@@ -14,7 +14,6 @@ end
 
 function game.update(dt)
 
-    -- update code here
 end
 
 function game.draw()
