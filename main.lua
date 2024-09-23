@@ -1,6 +1,8 @@
 
 local game = require("game")  -- Assuming game.lua is in the same directory as main.lua
 
+local pauseMenu = require("pauseMenu")
+
 -- Game states
 local currentState = "menu" -- Initially in the menu state
 local selectedOption = 1    -- Track selected menu option
@@ -46,7 +48,9 @@ function love.update(dt)
     if currentState == "menu" then
         updateMenu()
     elseif currentState == "playing" then
-        updateGame(dt)
+        if not pauseMenu.isPaused() then
+            game.update(dt)
+        end
     end
 end
 
@@ -57,6 +61,8 @@ function love.draw()
     elseif currentState == "playing" then
         -- Call draw logic from game.lua
         game.draw()
+
+        pauseMenu.draw()
     end
 end
 
@@ -64,7 +70,14 @@ function love.keypressed(key)
     if currentState == "menu" then
         handleMenuInput(key)
     elseif currentState == "playing" then
-        -- Add game controls here, like player movement
+        if key == "escape" then
+            -- Toggle pause menu when escape is pressed
+            pauseMenu.toggle()
+        else
+            if not pauseMenu.isPaused() then
+                game.handleGameInput(key)
+            end
+        end
     end
 end
 

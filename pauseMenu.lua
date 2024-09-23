@@ -1,4 +1,13 @@
+local pauseMenu = {}
 local isPaused = false
+
+function pauseMenu.toggle()
+    isPaused = not isPaused
+end
+
+function pauseMenu.isPaused()
+    return isPaused
+end
 
 function love.keypressed(key)
     -- Toggle the pause state. If paused, unpause
@@ -15,7 +24,7 @@ function love.update(dt)
     end
 end
 
-function love.draw()
+function pauseMenu.draw()
      -- Draw menu elements
     if currentState == "menu" then
         drawMenu()
