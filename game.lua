@@ -1,5 +1,7 @@
 local game = {}
 local player = require("player")
+local pauseMenu = require("pauseMenu")
+local screenWidth, screenHeight = 1920, 1080
 
 -- Define a table to hold the wall properties
 local wall = {}
@@ -16,12 +18,17 @@ function game.load()
 end
 
 function game.handleGameInput(key)
-    -- Handle specific key presses
-    player.handlePlayerInput(key)
+    -- If the game is paused, don't handle input for the game
+    if not pauseMenu.isPaused() then
+        player.handlePlayerInput(key)
+    end
 end
 
 function game.update(dt)
-    player.update(dt)  -- Update the player
+    -- Update only if the game is not paused
+    if not pauseMenu.isPaused() then
+        player.update(dt)  -- Update the player
+    end
 end
 
 function game.draw()
@@ -30,11 +37,20 @@ function game.draw()
     love.graphics.draw(wall.image, wall.x, wall.y)
 
     player.draw()  -- Draw the player and effects
+    pauseMenu.draw()
 end
-
+    
 -- Capture keypress events and pass them to handleGameInput
 function love.keypressed(key)
-    game.handleGameInput(key)
+    -- Toggle pause when escape is pressed
+    if key == "escape" then
+        pauseMenu.toggle()
+    end
+
+    -- Handle game input only if the game is not paused
+    if not pauseMenu.isPaused() then
+        game.handleGameInput(key)
+    end
 end
 
 return game
