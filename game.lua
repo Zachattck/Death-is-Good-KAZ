@@ -1,8 +1,18 @@
 local game = {}
 local player = require("player")
 
+-- Define a table to hold the wall properties
+local wall = {}
+
 function game.load()
     player.load()  -- Load the player
+
+    -- Load the wall image in game.lua
+    wall.image = love.graphics.newImage("assets/mapPlatforms.png")
+    wall.x = 300
+    wall.y = 200
+    wall.width = wall.image:getWidth()
+    wall.height = wall.image:getHeight()
 end
 
 function game.handleGameInput(key)
@@ -15,13 +25,16 @@ function game.update(dt)
 end
 
 function game.draw()
-    love.graphics.printf("Game Playing!", 0, 100, love.graphics.getWidth(), "center")
+
+    -- Draw the wall image
+    love.graphics.draw(wall.image, wall.x, wall.y)
+
     player.draw()  -- Draw the player and effects
 end
 
 -- Capture keypress events and pass them to handleGameInput
 function love.keypressed(key)
-    handleGameInput(key)
+    game.handleGameInput(key)
 end
 
 return game
