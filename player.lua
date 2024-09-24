@@ -14,8 +14,8 @@ local direction = 1  -- 1 for right, -1 for left
 local state = "idle"  -- Can be "idle" or "moving"
 
 function player.load()
-    player.x = 100
-    player.y = 100
+    player.x = 960
+    player.y = 200
     player.width = 128  -- Player size matching the sprite size
     player.height = 128
     player.speed = 200
