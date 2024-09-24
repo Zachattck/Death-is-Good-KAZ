@@ -25,20 +25,21 @@ function love.update(dt)
 end
 
 function pauseMenu.draw()
-     -- Draw menu elements
     if currentState == "menu" then
-        drawMenu()
-        -- Draw game elements
+        drawMenu()  -- Draw the menu when in the "menu" state
     elseif currentState == "playing" then
-        drawGame()
+        drawGame()  -- Draw the game when in the "playing" state
+
+        -- Draw the pause screen if paused
         if isPaused then
-            -- Set color to black with 50% transparency
+            -- Dim the game screen with a transparent black rectangle
             love.graphics.setColor(0, 0, 0, 0.5)
-            -- Dim the game screen
             love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
-            -- Reset the color to white
+
+            -- Reset the color to white for the text
             love.graphics.setColor(1, 1, 1)
-            -- Display the "Paused" text in the center of the screen.
+
+            -- Display the "Paused" text in the center of the screen
             love.graphics.printf("Paused", 0, screenHeight / 2, screenWidth, "center")
         end
     end
