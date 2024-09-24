@@ -1,14 +1,23 @@
 local player = {}
 local bloodsplatter = require("bloodsplatter")
 
-local wall = {}  -- Table to hold wall properties
-local imageData, collisionMask  -- To hold image data and collision mask for pixel-perfect collision
+local wall = {}
+local imageData, collisionMask
+
+local spriteSheet
+local quads = {}
+local currentFrame = 1
+local frameTimer = 0
+local frameSpeed = 0.1  -- Speed at which to switch frames
+local totalFrames = 5  -- We're only looping the first 5 frames
+local direction = 1  -- 1 for right, -1 for left
+local state = "idle"  -- Can be "idle" or "moving"
 
 function player.load()
     player.x = 100
     player.y = 100
-    player.width = 50
-    player.height = 50
+    player.width = 128  -- Player size matching the sprite size
+    player.height = 128
     player.speed = 200
 
     -- Load the wall image
@@ -17,6 +26,24 @@ function player.load()
     wall.y = 200
     wall.width = wall.image:getWidth()
     wall.height = wall.image:getHeight()
+
+    -- Load the sprite sheet (2048x2048 with 128x128 sprites)
+    spriteSheet = love.graphics.newImage("assets/van.png")
+
+    -- Create quads for each sprite (128x128) in the sprite sheet
+    local spriteSize = 128
+    local sheetWidth, sheetHeight = spriteSheet:getWidth(), spriteSheet:getHeight()
+
+    for y = 0, (sheetHeight / spriteSize) - 1 do
+        for x = 0, (sheetWidth / spriteSize) - 1 do
+            local quad = love.graphics.newQuad(
+                x * spriteSize, y * spriteSize, 
+                spriteSize, spriteSize, 
+                sheetWidth, sheetHeight
+            )
+            table.insert(quads, quad)
+        end
+    end
 
     -- Load the wall image data and create the collision mask
     imageData = love.image.newImageData("assets/mapPlatforms.png")
@@ -32,14 +59,12 @@ function player.load()
     bloodsplatter.load()  -- Load the blood splatter effect
 end
 
--- Function to check if the player is colliding with the non-alpha part of the wall
 function player.checkCollision(x, y)
     local localX = math.floor(x - wall.x)
     local localY = math.floor(y - wall.y)
 
-    -- Ensure we're within the bounds of the wall
     if localX >= 0 and localY >= 0 and localX < wall.width and localY < wall.height then
-        return collisionMask[localX][localY] -- True if colliding with non-transparent part
+        return collisionMask[localX][localY]
     else
         return false
     end
@@ -48,21 +73,44 @@ end
 function player.update(dt)
     -- Handle player movement
     local dx, dy = 0, 0
+    state = "idle"  -- Assume the player is idle unless they are moving
+
     if love.keyboard.isDown("left") then
         dx = -player.speed * dt
+        direction = -1  -- Facing left
+        state = "moving"
     elseif love.keyboard.isDown("right") then
         dx = player.speed * dt
+        direction = 1  -- Facing right
+        state = "moving"
     end
     if love.keyboard.isDown("up") then
         dy = -player.speed * dt
+        state = "moving"
     elseif love.keyboard.isDown("down") then
         dy = player.speed * dt
+        state = "moving"
     end
 
     -- Check for collision before moving the player
     if not player.checkCollision(player.x + dx, player.y + dy) then
         player.x = player.x + dx
         player.y = player.y + dy
+    end
+
+    -- Update the frame timer for animation only when moving
+    if state == "moving" then
+        frameTimer = frameTimer + dt
+        if frameTimer >= frameSpeed then
+            frameTimer = 0
+            currentFrame = currentFrame + 1
+            if currentFrame > totalFrames then
+                currentFrame = 1  -- Loop back to the first frame of the first 5
+            end
+        end
+    else
+        -- If idle, always set to the first frame
+        currentFrame = 1
     end
 
     bloodsplatter.update(dt)  -- Update the blood splatter
@@ -74,14 +122,20 @@ function player.handlePlayerInput(key)
     end
 end
 
--- Function to trigger the blood splatter effect
 function player.triggerBloodSplatter()
     bloodsplatter.trigger(player.x + player.width / 2, player.y + player.height / 2)
 end
 
 function player.draw()
-    -- Draw player as a rectangle (can be replaced with an image if needed)
-    love.graphics.rectangle("fill", player.x, player.y, player.width, player.height)
+    -- Flip the quad horizontally when facing left
+    local scaleX = direction  -- 1 when facing right, -1 when facing left
+    local offsetX = 0
+    if direction == -1 then
+        offsetX = player.width  -- Offset to flip around the player's center
+    end
+
+    -- Draw the player with the current sprite sheet frame, applying flipping
+    love.graphics.draw(spriteSheet, quads[currentFrame], player.x + offsetX, player.y, 0, scaleX, 1)
 
     -- Draw the wall image
     love.graphics.draw(wall.image, wall.x, wall.y)
