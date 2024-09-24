@@ -9,6 +9,10 @@ function pauseMenu.isPaused()
     return isPaused
 end
 
+function love.load()
+    screenWidth, screenHeight = love.graphics.getDimensions() 
+end
+
 function love.keypressed(key)
     -- Toggle the pause state. If paused, unpause
     if currentState == "playing" and key == "escape" then
