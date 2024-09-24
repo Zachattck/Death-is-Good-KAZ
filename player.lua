@@ -22,6 +22,10 @@ player.isGrounded = false  -- Track whether the player is on the ground
 player.isTouchingWall = false  -- Track whether the player is touching a wall
 player.wallDirection = 0  -- Direction of the wall the player is sliding on
 
+--Jump Logic
+local maxJumps = 1
+local currentJumps = 0  -- Track how many times the player has jumped
+
 function player.load()
     player.x = 150
     player.y = 1015
@@ -159,6 +163,7 @@ function player.update(dt)
         if dy > 0 then  -- If the player is falling
             player.velocityY = 0  -- Stop falling
             player.isGrounded = true  -- Player is on the ground
+            currentJumps = 0  -- Reset jump count when the player is grounded
         end
     end
 
@@ -180,20 +185,14 @@ function player.update(dt)
     bloodsplatter.update(dt)  -- Update the blood splatter
 end
 
-
-
 function player.handlePlayerInput(key)
-    if key == "space" then
-        if player.isGrounded then
-            player.velocityY = jumpVelocity  -- Apply an upward force if on ground
-            player.isGrounded = false  -- Player is now in the air
-        elseif player.isTouchingWall then
-            player.velocityY = jumpVelocity  -- Jump off the wall
-            player.isTouchingWall = false  -- Player is no longer touching the wall
-            player.x = player.x + player.wallDirection * player.width  -- Move player away from the wall
-        end
+    if key == "space" and currentJumps < maxJumps then
+        player.velocityY = jumpVelocity  -- Apply an upward force
+        currentJumps = currentJumps + 1  -- Increment jump count
+        player.isGrounded = false  -- Player is now in the air
     end
 end
+
 
 function player.triggerBloodSplatter()
     bloodsplatter.trigger(player.x + player.width / 2, player.y + player.height / 2)
