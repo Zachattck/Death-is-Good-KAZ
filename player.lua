@@ -13,17 +13,26 @@ local totalFrames = 5  -- We're only looping the first 5 frames
 local direction = 1  -- 1 for right, -1 for left
 local state = "idle"  -- Can be "idle" or "moving"
 
+-- Gravity and movement variables
+local gravity = 800  -- Increase gravity for faster falling
+local jumpVelocity = -300  -- Lower jump height
+local wallSlideGravity = 200  -- Reduced gravity while sliding down walls
+player.velocityY = 0  -- Player's vertical velocity
+player.isGrounded = false  -- Track whether the player is on the ground
+player.isTouchingWall = false  -- Track whether the player is touching a wall
+player.wallDirection = 0  -- Direction of the wall the player is sliding on
+
 function player.load()
-    player.x = 960 
-    player.y = 200
-    player.width = 64  -- Reduced player size
-    player.height = 64
-    player.speed = 200
+    player.x = 150
+    player.y = 1015
+    player.width = 32  
+    player.height = 32
+    player.speed = 100  -- Movement speed
 
     -- Load the wall image
     wall.image = love.graphics.newImage("assets/mapPlatforms.png")
-    wall.x = 300
-    wall.y = 200
+    wall.x = 0
+    wall.y = 0
     wall.width = wall.image:getWidth()
     wall.height = wall.image:getHeight()
 
@@ -31,7 +40,7 @@ function player.load()
     spriteSheet = love.graphics.newImage("assets/van.png")
 
     -- Create quads for each sprite (128x128) in the sprite sheet
-    local spriteSize = 128  -- Original size of each sprite in the sheet
+    local spriteSize = 128
     local sheetWidth, sheetHeight = spriteSheet:getWidth(), spriteSheet:getHeight()
 
     for y = 0, (sheetHeight / spriteSize) - 1 do
@@ -59,14 +68,17 @@ function player.load()
     bloodsplatter.load()  -- Load the blood splatter effect
 end
 
-
 function player.checkCollision(x, y)
     -- Get the current quad's width and height
     local _, _, quadWidth, quadHeight = quads[currentFrame]:getViewport()
 
-    -- Define player's bounds based on current quad and position
-    local playerLeft = x
-    local playerRight = x + player.width
+    -- Amount to shrink the player's collision width
+    local collisionShrinkWidth = 10  -- Total amount to shrink by
+    local halfShrink = collisionShrinkWidth / 2  -- Split shrink on both sides
+
+    -- Define player's bounds based on current quad and position, shrinking width
+    local playerLeft = x + halfShrink  -- Shrink from left
+    local playerRight = x + player.width - halfShrink  -- Shrink from right
     local playerTop = y
     local playerBottom = y + player.height
 
@@ -76,41 +88,78 @@ function player.checkCollision(x, y)
     local wallTop = wall.y
     local wallBottom = wall.y + wall.height
 
-    -- Check for a collision between the player and the wall
+    -- Check bounding box collision first (with adjusted player width)
     if playerRight > wallLeft and playerLeft < wallRight and
        playerBottom > wallTop and playerTop < wallBottom then
-        return true
-    else
-        return false
+        -- Now check pixel-perfect collision using collisionMask
+        local localPlayerX = math.floor(playerLeft - wall.x)
+        local localPlayerY = math.floor(playerTop - wall.y)
+
+        -- Check if the player's pixels are within the bounds of the wall image
+        for px = 0, player.width - 1 do
+            for py = 0, player.height - 1 do
+                local maskX = localPlayerX + px
+                local maskY = localPlayerY + py
+
+                -- Make sure we're within the bounds of the wall image
+                if maskX >= 0 and maskY >= 0 and maskX < wall.width and maskY < wall.height then
+                    if collisionMask[maskX] and collisionMask[maskX][maskY] then
+                        return true -- Collision detected with non-transparent pixel
+                    end
+                end
+            end
+        end
     end
+
+    return false -- No collision detected
 end
 
 function player.update(dt)
-    -- Handle player movement
     local dx, dy = 0, 0
     state = "idle"  -- Assume the player is idle unless they are moving
 
-    if love.keyboard.isDown("left") then
+    -- Horizontal movement
+    if love.keyboard.isDown("a") then
         dx = -player.speed * dt
         direction = -1  -- Facing left
         state = "moving"
-    elseif love.keyboard.isDown("right") then
+    elseif love.keyboard.isDown("d") then
         dx = player.speed * dt
         direction = 1  -- Facing right
         state = "moving"
     end
-    if love.keyboard.isDown("up") then
-        dy = -player.speed * dt
-        state = "moving"
-    elseif love.keyboard.isDown("down") then
-        dy = player.speed * dt
-        state = "moving"
+
+    -- Apply gravity if the player is not grounded
+    if not player.isGrounded then
+        if player.isTouchingWall then
+            -- If the player is touching a wall, reduce the gravity effect for wall sliding
+            player.velocityY = player.velocityY + wallSlideGravity * dt
+        else
+            -- Normal gravity when not sliding on a wall
+            player.velocityY = player.velocityY + gravity * dt
+        end
     end
 
-    -- Check for collision before moving the player
-    if not player.checkCollision(player.x + dx, player.y + dy) then
+    dy = player.velocityY * dt  -- Apply vertical velocity
+
+    -- Horizontal movement first (independent from ground collision)
+    local canMoveHorizontally = not player.checkCollision(player.x + dx, player.y)
+    if canMoveHorizontally then
         player.x = player.x + dx
+    end
+
+    -- Vertical collision check (for gravity and jumping)
+    local canMoveVertically = not player.checkCollision(player.x, player.y + dy)
+    if canMoveVertically then
+        -- Apply vertical movement
         player.y = player.y + dy
+        player.isGrounded = false  -- Player is in the air if no collision with ground
+    else
+        -- Stop vertical movement when hitting the ground
+        if dy > 0 then  -- If the player is falling
+            player.velocityY = 0  -- Stop falling
+            player.isGrounded = true  -- Player is on the ground
+        end
     end
 
     -- Update the frame timer for animation only when moving
@@ -131,16 +180,24 @@ function player.update(dt)
     bloodsplatter.update(dt)  -- Update the blood splatter
 end
 
+
+
 function player.handlePlayerInput(key)
     if key == "space" then
-        player.triggerBloodSplatter()
+        if player.isGrounded then
+            player.velocityY = jumpVelocity  -- Apply an upward force if on ground
+            player.isGrounded = false  -- Player is now in the air
+        elseif player.isTouchingWall then
+            player.velocityY = jumpVelocity  -- Jump off the wall
+            player.isTouchingWall = false  -- Player is no longer touching the wall
+            player.x = player.x + player.wallDirection * player.width  -- Move player away from the wall
+        end
     end
 end
 
 function player.triggerBloodSplatter()
     bloodsplatter.trigger(player.x + player.width / 2, player.y + player.height / 2)
 end
-
 
 function player.getWidth()
     return player.width
@@ -149,8 +206,6 @@ end
 function player.getHeight()
     return player.height
 end
-
-
 
 function player.draw()
     -- Flip the quad horizontally when facing left
@@ -178,6 +233,5 @@ function player.draw()
     -- Draw the blood splatter effect
     bloodsplatter.draw()
 end
-
 
 return player

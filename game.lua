@@ -11,14 +11,17 @@ function game.load()
 
     -- Load the wall image in game.lua
     wall.image = love.graphics.newImage("assets/mapPlatforms.png")
-    wall.x = 300
-    wall.y = 200
+    wall.x = 0
+    wall.y = 0
     wall.width = wall.image:getWidth()
     wall.height = wall.image:getHeight()
-    local Camera = require("camera")  -- Load the camera module
-    cam = Camera()  -- Initialize the camera object by calling the constructor
-    
+
+    -- Load the camera module and initialize it
+    local Camera = require("camera")
+    cam = Camera()  -- Initialize the camera object
+    cam:setZoom(3)  -- Set the zoom level to 2x (you can adjust this value)
 end
+
 
 function game.handleGameInput(key)
     -- If the game is paused, don't handle input for the game

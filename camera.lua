@@ -7,6 +7,7 @@ function Camera:new()
     setmetatable(cam, Camera)
     cam.x = 0
     cam.y = 0
+    cam.zoom = 1  -- Add zoom level (1 means no zoom, > 1 zooms in, < 1 zooms out)
     return cam
 end
 
@@ -15,16 +16,21 @@ function Camera:lookAt(x, y)
     self.y = y
 end
 
+function Camera:setZoom(zoomLevel)
+    self.zoom = zoomLevel
+end
+
 function Camera:attach()
-    love.graphics.push()
-    love.graphics.translate(-self.x + love.graphics.getWidth() / 2, -self.y + love.graphics.getHeight() / 2)
+    love.graphics.push()  -- Push current transformation onto the stack
+    love.graphics.translate(love.graphics.getWidth() / 2, love.graphics.getHeight() / 2)
+    love.graphics.scale(self.zoom, self.zoom)  -- Apply zoom before translation
+    love.graphics.translate(-self.x, -self.y)
 end
 
 function Camera:detach()
-    love.graphics.pop()
+    love.graphics.pop()  -- Pop the transformation off the stack
 end
 
--- Return a function that creates a new camera instance
 return function() 
     return Camera:new() 
 end
