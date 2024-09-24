@@ -126,6 +126,17 @@ function player.triggerBloodSplatter()
     bloodsplatter.trigger(player.x + player.width / 2, player.y + player.height / 2)
 end
 
+
+function player.getWidth()
+    return player.width
+end
+
+function player.getHeight()
+    return player.height
+end
+
+
+
 function player.draw()
     -- Flip the quad horizontally when facing left
     local scaleX = direction  -- 1 when facing right, -1 when facing left

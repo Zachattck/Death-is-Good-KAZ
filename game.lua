@@ -15,11 +15,9 @@ function game.load()
     wall.y = 200
     wall.width = wall.image:getWidth()
     wall.height = wall.image:getHeight()
-
-    --camera
-    camera = require 'Codes/camera'
-    cam = camera()
-
+    local Camera = require("camera")  -- Load the camera module
+    cam = Camera()  -- Initialize the camera object by calling the constructor
+    
 end
 
 function game.handleGameInput(key)
@@ -35,18 +33,24 @@ function game.update(dt)
         player.update(dt)  -- Update the player
     end
     ---camera
-    cam:lookAt(player:getWidth()/2,  player:getHeight()/2)
+    cam:lookAt(player.x , player.y )
 end
 
-function game.draw()
 
-    --camera attach
-    cam:attach()
+function game.draw()
+    -- Attach the camera before drawing the game world
+    cam:attach()  -- Make sure this is a method call, not an assignment
 
     -- Draw the wall image
     love.graphics.draw(wall.image, wall.x, wall.y)
 
-    player.draw()  -- Draw the player and effects
+    -- Draw the player and other game objects
+    player.draw()
+
+    -- Detach the camera after drawing the game world
+    cam:detach()
+
+    -- Draw the pause menu, which should not be affected by the camera
     pauseMenu.draw()
 end
     
