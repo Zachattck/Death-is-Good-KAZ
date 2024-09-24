@@ -15,6 +15,11 @@ function game.load()
     wall.y = 200
     wall.width = wall.image:getWidth()
     wall.height = wall.image:getHeight()
+
+    --camera
+    camera = require 'Codes/camera'
+    cam = camera()
+
 end
 
 function game.handleGameInput(key)
@@ -29,9 +34,14 @@ function game.update(dt)
     if not pauseMenu.isPaused() then
         player.update(dt)  -- Update the player
     end
+    ---camera
+    cam:lookAt(player:getWidth()/2,  player:getHeight()/2)
 end
 
 function game.draw()
+
+    --camera attach
+    cam:attach()
 
     -- Draw the wall image
     love.graphics.draw(wall.image, wall.x, wall.y)
@@ -51,6 +61,8 @@ function love.keypressed(key)
     if not pauseMenu.isPaused() then
         game.handleGameInput(key)
     end
+    ---camera detach
+    cam.detach()
 end
 
 return game
