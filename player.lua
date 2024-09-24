@@ -14,10 +14,10 @@ local direction = 1  -- 1 for right, -1 for left
 local state = "idle"  -- Can be "idle" or "moving"
 
 function player.load()
-    player.x = 960
+    player.x = 960 
     player.y = 200
-    player.width = 128  -- Player size matching the sprite size
-    player.height = 128
+    player.width = 64  -- Reduced player size
+    player.height = 64
     player.speed = 200
 
     -- Load the wall image
@@ -31,7 +31,7 @@ function player.load()
     spriteSheet = love.graphics.newImage("assets/van.png")
 
     -- Create quads for each sprite (128x128) in the sprite sheet
-    local spriteSize = 128
+    local spriteSize = 128  -- Original size of each sprite in the sheet
     local sheetWidth, sheetHeight = spriteSheet:getWidth(), spriteSheet:getHeight()
 
     for y = 0, (sheetHeight / spriteSize) - 1 do
@@ -59,12 +59,27 @@ function player.load()
     bloodsplatter.load()  -- Load the blood splatter effect
 end
 
-function player.checkCollision(x, y)
-    local localX = math.floor(x - wall.x)
-    local localY = math.floor(y - wall.y)
 
-    if localX >= 0 and localY >= 0 and localX < wall.width and localY < wall.height then
-        return collisionMask[localX][localY]
+function player.checkCollision(x, y)
+    -- Get the current quad's width and height
+    local _, _, quadWidth, quadHeight = quads[currentFrame]:getViewport()
+
+    -- Define player's bounds based on current quad and position
+    local playerLeft = x
+    local playerRight = x + player.width
+    local playerTop = y
+    local playerBottom = y + player.height
+
+    -- Define wall bounds
+    local wallLeft = wall.x
+    local wallRight = wall.x + wall.width
+    local wallTop = wall.y
+    local wallBottom = wall.y + wall.height
+
+    -- Check for a collision between the player and the wall
+    if playerRight > wallLeft and playerLeft < wallRight and
+       playerBottom > wallTop and playerTop < wallBottom then
+        return true
     else
         return false
     end
@@ -145,8 +160,17 @@ function player.draw()
         offsetX = player.width  -- Offset to flip around the player's center
     end
 
-    -- Draw the player with the current sprite sheet frame, applying flipping
-    love.graphics.draw(spriteSheet, quads[currentFrame], player.x + offsetX, player.y, 0, scaleX, 1)
+    -- Draw the player with scaling to match the smaller size
+    local scaleFactorX = player.width / 128  -- Scale down the width
+    local scaleFactorY = player.height / 128 -- Scale down the height
+
+    love.graphics.draw(
+        spriteSheet, 
+        quads[currentFrame], 
+        player.x + offsetX, player.y, 
+        0, 
+        scaleX * scaleFactorX, scaleFactorY
+    )
 
     -- Draw the wall image
     love.graphics.draw(wall.image, wall.x, wall.y)
@@ -154,5 +178,6 @@ function player.draw()
     -- Draw the blood splatter effect
     bloodsplatter.draw()
 end
+
 
 return player
