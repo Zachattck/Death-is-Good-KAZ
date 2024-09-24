@@ -22,4 +22,4 @@ function game.draw()
 
 end
 
-return game  -- This is the critical part you're missing
+return game

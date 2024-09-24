@@ -43,3 +43,5 @@ function pauseMenu.draw()
         end
     end
 end
+
+return pauseMenu
