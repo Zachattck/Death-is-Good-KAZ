@@ -11,10 +11,15 @@ function Camera:new()
     return cam
 end
 
-function Camera:lookAt(x, y)
-    self.x = x
-    self.y = y
+function Camera:position()
+    return self.x, self.y
 end
+
+function Camera:lookAt(x, y, width, height)
+    self.x = x + (width / 2)  -- Offset x by half the player's width
+    self.y = y + (height / 2)  -- Offset y by half the player's height
+end
+
 
 function Camera:setZoom(zoomLevel)
     self.zoom = zoomLevel

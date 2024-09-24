@@ -147,6 +147,7 @@ end
 
 
 
+
 function love.draw()
     if currentState == "menu" then
         drawMenu()
@@ -154,7 +155,8 @@ function love.draw()
         drawOptionsMenu()
     elseif currentState == "playing" then
         game.draw()
-    
+        
+        -- Draw the pause menu only if the game is paused
         if pauseMenu.isPaused() then
             pauseMenu.draw()  -- Draw the pause menu UI when paused
         end
@@ -167,6 +169,7 @@ function love.draw()
         love.graphics.setColor(1, 1, 1, 1)  -- Reset color after drawing
     end
 end
+
 
 -- Handle mouse input
 function love.mousepressed(x, y, button)
