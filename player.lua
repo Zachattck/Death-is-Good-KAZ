@@ -74,18 +74,15 @@ function player.load()
 end
 
 function player.checkCollision(x, y)
-    -- Get the current quad's width and height
-    local _, _, quadWidth, quadHeight = quads[currentFrame]:getViewport()
+    -- Define the amount to shrink the player's collision box
+    local shrinkWidth = 6  -- Reduce the hitbox width by 6 pixels (3 pixels on each side)
+    local shrinkHeight = 4  -- Reduce the hitbox height by 4 pixels (2 pixels on top and bottom)
 
-    -- Amount to shrink the player's collision width
-    local collisionShrinkWidth = 10  -- Total amount to shrink by
-    local halfShrink = collisionShrinkWidth / 2  -- Split shrink on both sides
-
-    -- Define player's bounds based on current quad and position, shrinking width
-    local playerLeft = x + halfShrink  -- Shrink from left
-    local playerRight = x + player.width - halfShrink  -- Shrink from right
-    local playerTop = y
-    local playerBottom = y + player.height
+    -- Define player's bounds based on position, shrinking width and height
+    local playerLeft = x + shrinkWidth / 2  -- Shrink from left
+    local playerRight = x + player.width - shrinkWidth / 2  -- Shrink from right
+    local playerTop = y + shrinkHeight / 2  -- Shrink from top
+    local playerBottom = y + player.height - shrinkHeight / 2  -- Shrink from bottom
 
     -- Define wall bounds
     local wallLeft = wall.x
@@ -93,7 +90,7 @@ function player.checkCollision(x, y)
     local wallTop = wall.y
     local wallBottom = wall.y + wall.height
 
-    -- Check bounding box collision first (with adjusted player width)
+    -- Check bounding box collision first (with adjusted player width/height)
     if playerRight > wallLeft and playerLeft < wallRight and
        playerBottom > wallTop and playerTop < wallBottom then
         -- Now check pixel-perfect collision using collisionMask
@@ -101,8 +98,8 @@ function player.checkCollision(x, y)
         local localPlayerY = math.floor(playerTop - wall.y)
 
         -- Check if the player's pixels are within the bounds of the wall image
-        for px = 0, player.width - 1 do
-            for py = 0, player.height - 1 do
+        for px = 0, player.width - shrinkWidth - 1 do  -- Adjust pixel loop by shrink amount
+            for py = 0, player.height - shrinkHeight - 1 do  -- Adjust pixel loop by shrink amount
                 local maskX = localPlayerX + px
                 local maskY = localPlayerY + py
 
@@ -118,6 +115,7 @@ function player.checkCollision(x, y)
 
     return false -- No collision detected
 end
+
 
 function player.update(dt)
     local dx, dy = 0, 0
