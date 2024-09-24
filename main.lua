@@ -154,8 +154,10 @@ function love.draw()
         drawOptionsMenu()
     elseif currentState == "playing" then
         game.draw()
-    elseif currentState == "isPaused" then
-        pauseMenu.draw()
+    
+        if pauseMenu.isPaused() then
+            pauseMenu.draw()  -- Draw the pause menu UI when paused
+        end
     end
 
     -- Draw the fade effect on top of everything

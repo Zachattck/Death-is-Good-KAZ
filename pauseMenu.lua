@@ -23,8 +23,10 @@ function love.keypressed(key)
 end
 
 function love.update(dt)
-    if currentState == "playing" and not isPaused then
-        updateGame(dt)
+    if currentState == "playing" then
+        if not pauseMenu.isPaused() then
+            game.update(dt)  -- Update the game only when not paused
+        end
     end
 end
 

@@ -50,7 +50,7 @@ function game.draw()
     -- Detach the camera after drawing the game world
     cam:detach()
 
-    -- Draw the pause menu, which should not be affected by the camera
+    -- Draw the pause menu
     pauseMenu.draw()
 end
     
