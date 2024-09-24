@@ -36,17 +36,22 @@ function pauseMenu.draw()
     elseif currentState == "playing" then
         drawGame()  -- Draw the game when in the "playing" state
 
-        -- Draw the pause screen if paused
-        if isPaused then
-            -- Dim the game screen with a transparent black rectangle
-            love.graphics.setColor(0, 0, 0, 0.5)
-            love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
+       -- Draw the pause screen if paused
+       if isPaused then
+        cam:detach()
 
-            -- Reset the color to white for the text
-            love.graphics.setColor(1, 1, 1)
+        -- Dim the game screen with a transparent black rectangle
+        love.graphics.setColor(0, 0, 0, 0.5)
+        love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
 
-            -- Display the "Paused" text in the center of the screen
-            love.graphics.printf("Paused", 0, screenHeight / 2, screenWidth, "center")
+        -- Reset the color to white for the text
+        love.graphics.setColor(1, 1, 1)
+
+        -- Display the "Paused" text in the center of the screen
+        love.graphics.printf("Paused", 0, screenHeight / 2, screenWidth, "center")
+
+        -- Re-attach the camera after drawing the pause menu
+        cam:attach()
         end
     end
 end
