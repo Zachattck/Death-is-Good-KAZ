@@ -15,7 +15,7 @@ local state = "idle"  -- Can be "idle" or "moving"
 
 -- Gravity and movement variables
 local gravity = 800  -- Increase gravity for faster falling
-local jumpVelocity = -300  -- Lower jump height
+local jumpVelocity = -375  -- Lower jump height
 local wallSlideGravity = 200  -- Reduced gravity while sliding down walls
 player.velocityY = 0  -- Player's vertical velocity
 player.isGrounded = false  -- Track whether the player is on the ground
