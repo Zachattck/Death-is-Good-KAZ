@@ -154,6 +154,7 @@ function love.draw()
         drawOptionsMenu()
     elseif currentState == "playing" then
         game.draw()
+    elseif currentState == "isPaused" then
         pauseMenu.draw()
     end
 
