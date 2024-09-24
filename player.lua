@@ -17,6 +17,7 @@ local state = "idle"  -- Can be "idle" or "moving"
 local gravity = 800  -- Increase gravity for faster falling
 local jumpVelocity = -375  -- Lower jump height
 local wallSlideGravity = 200  -- Reduced gravity while sliding down walls
+
 player.velocityY = 0  -- Player's vertical velocity
 player.isGrounded = false  -- Track whether the player is on the ground
 player.isTouchingWall = false  -- Track whether the player is touching a wall
@@ -207,30 +208,36 @@ function player.getHeight()
 end
 
 function player.draw()
-    -- Flip the quad horizontally when facing left
-    local scaleX = direction  -- 1 when facing right, -1 when facing left
-    local offsetX = 0
-    if direction == -1 then
-        offsetX = player.width  -- Offset to flip around the player's center
-    end
+    -- Scaling factors to scale down the sprite to player.width and player.height
+    local scaleFactorX = player.width / 128  -- Original sprite width is 128
+    local scaleFactorY = player.height / 128 -- Original sprite height is 128
 
-    -- Draw the player with scaling to match the smaller size
-    local scaleFactorX = player.width / 128  -- Scale down the width
-    local scaleFactorY = player.height / 128 -- Scale down the height
+    -- ScaleX includes direction for flipping
+    local scaleX = direction * scaleFactorX  -- 1 when facing right, -1 when facing left
+    local scaleY = scaleFactorY
 
+    -- Set the origin to the center of the sprite
+    local originX = 64  -- Half of the original sprite width (128 / 2)
+    local originY = 64  -- Half of the original sprite height (128 / 2)
+
+    -- Calculate the draw position (center of the player)
+    local drawX = player.x + player.width / 2
+    local drawY = player.y + player.height / 2
+
+    -- Draw the player
     love.graphics.draw(
         spriteSheet, 
         quads[currentFrame], 
-        player.x + offsetX, player.y, 
+        drawX, drawY, 
         0, 
-        scaleX * scaleFactorX, scaleFactorY
+        scaleX, scaleY,
+        originX, originY
     )
 
-    -- Draw the wall image
-    love.graphics.draw(wall.image, wall.x, wall.y)
 
     -- Draw the blood splatter effect
     bloodsplatter.draw()
 end
+
 
 return player
