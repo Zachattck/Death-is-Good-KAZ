@@ -34,16 +34,23 @@ function game.load()
     wall.y = 0
     wall.width = wall.image:getWidth()
     wall.height = wall.image:getHeight()
+<<<<<<< Updated upstream
 
     player.load()  -- Load the player and its assets
+=======
+    ---camera
+    camera = require 'Codes/camera'
+    cam = camera()
+
+>>>>>>> Stashed changes
 end
 
 -- Function to start the cutscene
 function game.startCutscene(currentMusic, volume)
     game.cutscene = Cutscene:new({
-        "It was a normal archeological dig... at the pyramids",
-        "until...",
-        "oh man I've gotta find my way out of this place now"
+        "Dennis was exploring the pyramid, when he became trapped inside ... Now its up to him to rescue himself!",
+        "HINT: Dennis can't go through walls but his ghost can",
+        "Let your journey begin, navigate this dream or be trapped forever"
     }, 
     "assets/introImage.png",  -- Image
     "assets/introBackgroundMusic.mp3",  -- Background music
@@ -73,6 +80,8 @@ function game.handleGameInput(key)
     if not pauseMenu.isPaused() then
         player.handlePlayerInput(key)  -- Forward input to the player's handler
     end
+    ---camera
+    cam:lookAt(player:getWidth()/2,  player:getHeight()/2)
 end
 
 -- Update the game state
@@ -80,6 +89,7 @@ function game.update(dt)
     if game.currentState == "cutscene" then
         game.cutscene:update(dt)  -- Update cutscene
 
+<<<<<<< Updated upstream
         -- Check if the cutscene has ended
         if not game.cutscene.isActive then
             print("Cutscene ended. Switching to playing state.")
@@ -114,6 +124,18 @@ function game.update(dt)
     if game.fadeInAlpha > 0 then
         game.fadeInAlpha = game.fadeInAlpha - dt * 0.5  -- Adjust fade speed as needed
     end
+=======
+    ---Camera attach
+    cam:attach()
+    -- Draw the wall image
+    love.graphics.draw(wall.image, wall.x, wall.y)
+
+    player.draw()  -- Draw the player and effects
+    pauseMenu.draw()
+    ---Camera detach
+    cam:detach()
+
+>>>>>>> Stashed changes
 end
 
 
