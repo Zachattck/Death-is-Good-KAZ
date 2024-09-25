@@ -11,11 +11,6 @@ local cutscene  -- Cutscene variable
 
 game.fadeInAlpha = 1  -- Initial fade-in alpha value
 
--- Flicker parameters
-local flickerTimer = 0
-local flickerInterval = 0.01
-local flickerStrength = 3  -- Adjusted strength to match old logic
-local flickerOffset = 0
 
 game.cutscene = nil  -- Initialize cutscene as nil to avoid loading it prematurely
 game.currentState = "menu"  -- Start in the menu state
@@ -25,7 +20,7 @@ function game.load()
     -- Load the camera module and initialize it
     local Camera = require("camera")
     cam = Camera()
-    cam:setZoom(4)
+    cam:setZoom(.5)
 
     -- Load the wall image
     wall.image = love.graphics.newImage("assets/mapPlatforms.png")
@@ -104,12 +99,7 @@ function game.update(dt)
         -- Camera should update *after* player has been updated
         cam:lookAt(player.x,player.y, player.width, player.height)  -- Follow the player
 
-        -- Flicker logic (lighting effect, optional)
-        flickerTimer = flickerTimer + dt
-        if flickerTimer >= flickerInterval then
-            flickerOffset = math.random(-flickerStrength, flickerStrength)
-            flickerTimer = 0
-        end
+
     end
 
     -- Handle fade-in effect on game launch
@@ -136,7 +126,7 @@ function game.draw()
         -- Draw the player
         print("Drawing player at position: ", player.x, player.y)
         player.draw()  -- Draw the player
-        drawLightingEffect()
+        
 
         -- Detach the camera for any UI or effects
         cam:detach()
@@ -157,62 +147,9 @@ function game.draw()
     end
 end
 
-function drawLightingEffect()
-    -- Check if ghost mode is enabled
-    if player.isInGhostMode() then
-        print("Ghost mode is active, skipping lighting effect")
-        return -- Early exit if in ghost mode (lighting is not drawn)
-    end
-    
-    print("Ghost mode is inactive, drawing lighting effect")
 
-    local zoom = cam.zoom or 1
 
-    -- Calculate player center in world space
-    local playerCenterX = player.x + player.width / 2
-    local playerCenterY = player.y + player.height / 2
-    
-    -- Convert world position to screen coordinates
-    local playerScreenX = (playerCenterX - cam.x) * zoom + screenWidth / 2
-    local playerScreenY = (playerCenterY - cam.y) * zoom + screenHeight / 2
-    
-    print("Player center X:", playerCenterX, "Player center Y:", playerCenterY)
-    print("Camera X:", cam.x, "Camera Y:", cam.y, "Zoom:", zoom)
-    print("Screen coordinates X:", playerScreenX, "Y:", playerScreenY)
-    
-    -- Step 1: Define the stencil function to create the light mask
-    love.graphics.stencil(function()
-        love.graphics.circle("fill", playerScreenX, playerScreenY, 200)
-    end, "replace", 1)
 
-    -- Step 2: Enable stencil test to punch a hole in the darkness (where the light will be visible)
-    love.graphics.setStencilTest("equal", 0)
-
-    -- Step 3: Draw the dark rectangle covering the entire screen
-    love.graphics.setColor(0, 0, 0, 0.99)  -- Adjust alpha for darkness
-    love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
-    
-    -- Step 4: Disable the stencil test so that the light can be drawn freely
-    love.graphics.setStencilTest()
-
-    -- Step 5: Now draw the actual light circles
-    local baseRadius = 80 + flickerOffset
-    local layers = 10
-    local yellowHue = {1, 1, 0.8}
-
-    -- Draw each layer with decreasing alpha and increasing size
-    for i = layers, 1, -1 do
-        print("Drawing light at X:", playerScreenX, "Y:", playerScreenY)
-
-        local radius = baseRadius + (i * 15)
-        local alpha = 0.3 * (i / layers)  -- Increased alpha for visibility
-        love.graphics.setColor(yellowHue[1] * (i / layers), yellowHue[2] * (i / layers), yellowHue[3], alpha)
-        love.graphics.circle("fill", playerScreenX, playerScreenY, radius)
-    end
-
-    -- Reset the color for future drawing operations
-    love.graphics.setColor(1, 1, 1, 1)
-end
 
 
 -- Capture keypress events and pass them to handleGameInput

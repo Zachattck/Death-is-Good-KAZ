@@ -13,6 +13,12 @@ local totalFrames = 5  -- We're only looping the first 5 frames
 local direction = 1  -- 1 for right, -1 for left
 local state = "idle"  -- Can be "idle" or "moving"
 
+-- Flicker parameters
+local flickerTimer = 0
+local flickerInterval = 0.01
+local flickerStrength = 3  -- Adjusted strength to match old logic
+local flickerOffset = 0
+
 -- Ghost mode variables
 local isGhostMode = false
 local ghostTimer = 0
@@ -51,7 +57,7 @@ local function constrainToBounds(x, y)
 end
 
 function player.load()
-    player.x = 150
+    player.x = 300
     player.y = 1015
     player.width = 32  
     player.height = 32
@@ -150,6 +156,12 @@ function player.update(dt)
     local dx, dy = 0, 0
     state = "idle"  -- Assume the player is idle unless they are moving
 
+            -- Flicker logic (lighting effect, optional)
+    flickerTimer = flickerTimer + dt
+     if flickerTimer >= flickerInterval then
+            flickerOffset = math.random(-flickerStrength, flickerStrength)
+            flickerTimer = 0
+     end
     -- Handle smooth teleportation
     if isTeleporting then
         -- Use lerp for smooth movement and constrain the player to map bounds
@@ -303,7 +315,7 @@ end
 function player.draw()
     -- Use the ghost quad if in ghost mode, otherwise use the regular quads
     local currentQuad = isGhostMode and ghostQuad or quads[currentFrame]
-
+    drawLightingEffect()
     -- Scaling factors to scale down the sprite to player.width and player.height
     local scaleFactorX = player.width / 128  -- Original sprite width is 128
     local scaleFactorY = player.height / 128 -- Original sprite height is 128
@@ -338,8 +350,8 @@ function player.draw()
         love.graphics.setColor(0, 0, 1, 0.2)  -- Blue color with slight transparency
 
         -- Calculate the overlay dimensions relative to the player's position
-        local overlayX = player.x - overlayWidth / 2  -- Center the overlay around the player
-        local overlayY = player.y - overlayHeight / 2  -- Center the overlay around the player
+        local overlayX = player.x -- Center the overlay around the player
+        local overlayY = player.y   -- Center the overlay around the player
 
         -- Draw the blue overlay relative to the player's position
         love.graphics.rectangle("fill", overlayX, overlayY, 2000, 2000)
@@ -350,6 +362,69 @@ end
 
 function player.isInGhostMode()
     return isGhostMode
+end
+
+
+function drawLightingEffect()
+    -- Check if ghost mode is enabled
+    if player.isInGhostMode() then
+        print("Ghost mode is active, skipping lighting effect")
+        return -- Early exit if in ghost mode (lighting is not drawn)
+    else
+        print("Ghost mode is inactive, drawing lighting effect")
+
+        local zoom = cam.zoom or 1
+
+        -- Use player's current position directly (centered)
+        local playerCenterX = player.x
+        local playerCenterY = player.y
+
+
+        -- Debugging information
+        print("Player center X:", playerCenterX, "Player center Y:", playerCenterY)
+
+
+        -- Step 1: Define the stencil function to create the light mask
+        love.graphics.stencil(function()
+            love.graphics.circle("fill", playerCenterX, playerCenterY, 200)
+        end, "replace", 1)
+
+        -- Step 2: Enable stencil test to punch a hole in the darkness (where the light will be visible)
+        love.graphics.setStencilTest("equal", 0)
+
+        -- Step 3: Draw the dark rectangle (covering the whole screen)
+        love.graphics.setColor(0, 0, 0, 0.99)
+        love.graphics.rectangle("fill", 0, 0, 2000, 2000)
+
+        -- Step 4: Disable the stencil test so that the light can be drawn freely
+        love.graphics.setStencilTest()
+
+        -- Step 5: Now draw the actual light circles
+        local baseRadius = 20 + flickerOffset
+        local layers = 10
+        local yellowHue = {1, 1, 0.8}
+
+        -- Draw each layer with decreasing alpha and increasing size
+        for i = layers, 1, -1 do
+            print("Drawing light at X:", playerCenterX, "Y:", playerCenterY)
+
+            local radius = baseRadius + (i * 5)
+            local alpha = 0.2 * (i / layers)  -- Ensure a higher base alpha value for visibility
+            love.graphics.setColor(yellowHue[1] * (i / layers), yellowHue[2] * (i / layers), yellowHue[3], alpha)
+            love.graphics.circle("fill", playerCenterX, playerCenterY, radius)
+        end
+
+        -- Reset the color for future drawing operations
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+end
+
+
+
+function player.getCenterPosition()
+    local centerX = player.x + player.width / 2
+    local centerY = player.y + player.height / 2
+    return centerX, centerY
 end
 
 
