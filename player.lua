@@ -16,7 +16,7 @@ local state = "idle"  -- Can be "idle" or "moving"
 -- Flicker parameters
 local flickerTimer = 0
 local flickerInterval = 0.01
-local flickerStrength = 3  -- Adjusted strength to match old logic
+local flickerStrength = 1  -- Adjusted strength to match old logic
 local flickerOffset = 0
 
 -- Ghost mode variables
@@ -375,18 +375,18 @@ function drawLightingEffect()
 
         local zoom = cam.zoom or 1
 
-        -- Use player's current position directly (centered)
-        local playerCenterX = player.x
-        local playerCenterY = player.y
-
+        -- Use player's current position directly (centered) and apply offset
+        local offsetX = 14  -- Adjust this for manual horizontal offset
+        local offsetY = 10  -- Adjust this for manual vertical offset
+        local playerCenterX = player.x + offsetX
+        local playerCenterY = player.y + offsetY
 
         -- Debugging information
         print("Player center X:", playerCenterX, "Player center Y:", playerCenterY)
 
-
         -- Step 1: Define the stencil function to create the light mask
         love.graphics.stencil(function()
-            love.graphics.circle("fill", playerCenterX, playerCenterY, 200)
+            love.graphics.circle("fill", playerCenterX, playerCenterY, 50)  -- Adjust initial radius for smaller circle
         end, "replace", 1)
 
         -- Step 2: Enable stencil test to punch a hole in the darkness (where the light will be visible)
@@ -400,16 +400,16 @@ function drawLightingEffect()
         love.graphics.setStencilTest()
 
         -- Step 5: Now draw the actual light circles
-        local baseRadius = 20 + flickerOffset
-        local layers = 10
+        local baseRadius = 10 + flickerOffset  -- Reduce base radius to make the light smaller
+        local layers = 10  -- Fewer layers for a smaller effect
         local yellowHue = {1, 1, 0.8}
 
         -- Draw each layer with decreasing alpha and increasing size
         for i = layers, 1, -1 do
             print("Drawing light at X:", playerCenterX, "Y:", playerCenterY)
 
-            local radius = baseRadius + (i * 5)
-            local alpha = 0.2 * (i / layers)  -- Ensure a higher base alpha value for visibility
+            local radius = baseRadius + (i * 5)  -- Reduce the layer increment for smaller rings
+            local alpha = 0.10 * (i / layers)  -- Higher base alpha for more visible light
             love.graphics.setColor(yellowHue[1] * (i / layers), yellowHue[2] * (i / layers), yellowHue[3], alpha)
             love.graphics.circle("fill", playerCenterX, playerCenterY, radius)
         end
@@ -418,6 +418,7 @@ function drawLightingEffect()
         love.graphics.setColor(1, 1, 1, 1)
     end
 end
+
 
 
 

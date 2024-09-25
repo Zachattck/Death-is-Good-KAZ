@@ -20,7 +20,7 @@ function game.load()
     -- Load the camera module and initialize it
     local Camera = require("camera")
     cam = Camera()
-    cam:setZoom(.5)
+    cam:setZoom(4)
 
     -- Load the wall image
     wall.image = love.graphics.newImage("assets/mapPlatforms.png")
