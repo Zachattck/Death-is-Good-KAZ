@@ -38,6 +38,12 @@ player.wallDirection = 0  -- Direction of the wall the player is sliding on
 local maxJumps = 1
 local currentJumps = 0  -- Track how many times the player has jumped
 
+-- Ladder Logic
+local LADDER = 2
+local player = {}
+
+player.isOnLadder = false
+
 -- Linear interpolation function for smooth teleportation
 local function lerp(a, b, t)
     return a + (b - a) * t
@@ -99,6 +105,33 @@ function player.load()
     end
 
     bloodsplatter.load()  -- Load the blood splatter effect
+
+    -- Load player and ladder data
+    imageData = love.image.newImageData("assets/mapLadders.png")
+    collisionMask = {}
+
+    -- Detecting Ladders
+    for x = 0, imageData:getWidth() - 1 do
+        collisionMask[x] = {}
+        for y = 0, imageData:getHeight() - 1 do
+            local r, g, b, a = imageData:getPixel(x, y)
+
+            -- Only detect ladders
+            if r == 0 and g == 0 and b == 255 and a > 0 then
+                collisionMask[x][y] = LADDER  
+            else
+                collisionMask[x][y] = nil  
+            end
+        end
+    end
+    -- Initialize player properties
+    player.x = 100
+    player.y = 500
+    player.width = 32
+    player.height = 32
+    player.speed = 100  -- Movement speed
+    player.velocityY = 0
+    player.isGrounded = false
 end
 
 function player.checkCollision(x, y)
@@ -144,6 +177,31 @@ function player.checkCollision(x, y)
     end
 
     return false -- No collision detected
+end
+
+-- Check if the player is colliding with a ladder
+function player.checkLadderCollision(x, y)
+    local playerLeft = x
+    local playerRight = x + player.width
+    local playerTop = y
+    local playerBottom = y + player.height
+
+    -- Check if the player is within the bounds of the ladder image
+    for px = 0, player.width - 1 do
+        for py = 0, player.height - 1 do
+            local maskX = math.floor(playerLeft + px)
+            local maskY = math.floor(playerTop + py)
+
+            if maskX >= 0 and maskY >= 0 and maskX < imageData:getWidth() and maskY < imageData:getHeight() then
+                local maskValue = collisionMask[maskX][maskY]
+                if maskValue == LADDER then
+                    return true
+                end
+            end
+        end
+    end
+
+    return false
 end
 
 function player.update(dt)
@@ -254,6 +312,40 @@ function player.update(dt)
     end
 
     bloodsplatter.update(dt)  -- Update the blood splatter
+
+    local dx, dy = 0, 0
+
+    -- Check if the player is on a ladder
+    if player.checkLadderCollision(player.x, player.y) then
+        player.isOnLadder = true
+        player.velocityY = 0  -- Disable gravity while on the ladder
+
+        -- Climb up or down using W and S keys
+        if love.keyboard.isDown("w") then
+            dy = -player.speed * dt  -- Climb up
+        elseif love.keyboard.isDown("s") then
+            dy = player.speed * dt  -- Climb down
+        end
+    else
+        player.isOnLadder = false
+    end
+
+    -- Apply gravity when not on a ladder
+    if not player.isOnLadder then
+        player.velocityY = player.velocityY + 800 * dt  -- Apply gravity
+        dy = player.velocityY * dt
+    end
+
+    -- Horizontal movement (A and D keys)
+    if love.keyboard.isDown("a") then
+        dx = -player.speed * dt
+    elseif love.keyboard.isDown("d") then
+        dx = player.speed * dt
+    end
+
+    -- Update player position
+    player.x = player.x + dx
+    player.y = player.y + dy
 end
 
 function player.triggerGhostMode()
@@ -346,6 +438,9 @@ function player.draw()
         
         love.graphics.setColor(1, 1, 1, 1)  -- Reset color after drawing
     end
+
+    -- Draw player on ladder
+    
 end
 
 function player.isInGhostMode()

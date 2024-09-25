@@ -20,6 +20,10 @@ local flickerOffset = 0
 game.cutscene = nil  -- Initialize cutscene as nil to avoid loading it prematurely
 game.currentState = "menu"  -- Start in the menu state
 
+-- Loading Ladder
+local game = {}
+local player = require("player")
+
 -- Load function initializes camera, player, and cutscene
 function game.load()
     -- Load the camera module and initialize it
@@ -35,6 +39,9 @@ function game.load()
     wall.height = wall.image:getHeight()
 
     player.load()  -- Load the player and its assets
+
+    ladderImage = love.graphics.newImage("assets/mapLadders.png")
+    player.load()  -- Load the player logic
 end
 
 -- Function to start the cutscene
@@ -116,6 +123,7 @@ function game.update(dt)
     if game.fadeInAlpha > 0 then
         game.fadeInAlpha = game.fadeInAlpha - dt * 0.5  -- Adjust fade speed as needed
     end
+    player.update(dt)
 end
 
 
@@ -155,6 +163,9 @@ function game.draw()
             love.graphics.setColor(1, 1, 1, 1)  -- Reset color after drawing
         end
     end
+    love.graphics.draw(ladderImage, 0, 0)  -- Draw the ladder image
+
+    player.draw()
 end
 
 function drawLightingEffect()
