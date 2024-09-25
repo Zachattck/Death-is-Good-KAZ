@@ -13,6 +13,17 @@ local totalFrames = 5  -- We're only looping the first 5 frames
 local direction = 1  -- 1 for right, -1 for left
 local state = "idle"  -- Can be "idle" or "moving"
 
+-- Ghost mode variables
+local isGhostMode = false
+local ghostTimer = 0
+local ghostDuration = 5  -- Ghost mode lasts 5 seconds
+local ghostQuad  -- Quad for the ghost sprite
+local ghostSpeed = 20  -- Drastically reduced movement speed in ghost mode
+
+-- Map boundaries
+local mapWidth =  10000 -- Example map width
+local mapHeight = 10000  -- Example map height
+
 -- Gravity and movement variables
 local gravity = 800  -- Increase gravity for faster falling
 local jumpVelocity = -375  -- Lower jump height
@@ -23,16 +34,28 @@ player.isGrounded = false  -- Track whether the player is on the ground
 player.isTouchingWall = false  -- Track whether the player is touching a wall
 player.wallDirection = 0  -- Direction of the wall the player is sliding on
 
---Jump Logic
+-- Jump Logic
 local maxJumps = 1
 local currentJumps = 0  -- Track how many times the player has jumped
+
+-- Linear interpolation function for smooth teleportation
+local function lerp(a, b, t)
+    return a + (b - a) * t
+end
+
+-- Constrain the player within the map boundaries
+local function constrainToBounds(x, y)
+    x = math.max(0, math.min(mapWidth - player.width, x))  -- Ensure x is within bounds
+    y = math.max(0, math.min(mapHeight - player.height, y))  -- Ensure y is within bounds
+    return x, y
+end
 
 function player.load()
     player.x = 150
     player.y = 1015
     player.width = 32  
     player.height = 32
-    player.speed = 100  -- Movement speed
+    player.speed = 100  -- Normal movement speed
 
     -- Load the wall image
     wall.image = love.graphics.newImage("assets/mapPlatforms.png")
@@ -59,6 +82,11 @@ function player.load()
         end
     end
 
+    -- Load the ghost quad (11th column, 12th row)
+    local ghostX = (11 - 1) * spriteSize  -- Convert 11th column to zero-indexed
+    local ghostY = (12 - 1) * spriteSize  -- Convert 12th row to zero-indexed
+    ghostQuad = love.graphics.newQuad(ghostX, ghostY, spriteSize, spriteSize, sheetWidth, sheetHeight)
+
     -- Load the wall image data and create the collision mask
     imageData = love.image.newImageData("assets/mapPlatforms.png")
     collisionMask = {}
@@ -74,6 +102,8 @@ function player.load()
 end
 
 function player.checkCollision(x, y)
+    if isGhostMode then return false end  -- No collision in ghost mode
+
     -- Define the amount to shrink the player's collision box
     local shrinkWidth = 6  -- Reduce the hitbox width by 6 pixels (3 pixels on each side)
     local shrinkHeight = 4  -- Reduce the hitbox height by 4 pixels (2 pixels on top and bottom)
@@ -116,10 +146,52 @@ function player.checkCollision(x, y)
     return false -- No collision detected
 end
 
-
 function player.update(dt)
     local dx, dy = 0, 0
     state = "idle"  -- Assume the player is idle unless they are moving
+
+    -- Handle smooth teleportation
+    if isTeleporting then
+        -- Use lerp for smooth movement and constrain the player to map bounds
+        player.x = lerp(player.x, targetPosition.x, teleportSpeed * dt)
+        player.y = lerp(player.y, targetPosition.y, teleportSpeed * dt)
+        player.x, player.y = constrainToBounds(player.x, player.y)  -- Ensure player stays within map bounds
+
+        -- Check if the player is close enough to the target position
+        if math.abs(player.x - targetPosition.x) < 1 and math.abs(player.y - targetPosition.y) < 1 then
+            isTeleporting = false  -- Stop teleporting once close enough
+        end
+        return
+    end
+
+    -- Handle ghost mode
+    if isGhostMode then
+        ghostTimer = ghostTimer - dt
+        if ghostTimer <= 0 then
+            isGhostMode = false
+            player.exitGhostMode()  -- Handle exiting ghost mode
+        end
+
+        -- Omnidirectional movement in ghost mode using ghostSpeed
+        if love.keyboard.isDown("a") then
+            dx = -ghostSpeed * dt  -- Slower movement in ghost mode
+            direction = -1  -- Facing left
+        elseif love.keyboard.isDown("d") then
+            dx = ghostSpeed * dt
+            direction = 1  -- Facing right
+        end
+        if love.keyboard.isDown("w") then
+            dy = -ghostSpeed * dt  -- Move up
+        elseif love.keyboard.isDown("s") then
+            dy = ghostSpeed * dt  -- Move down
+        end
+
+        -- Update player's position in ghost mode without resetting position
+        player.x = player.x + dx
+        player.y = player.y + dy
+        player.x, player.y = constrainToBounds(player.x, player.y)  -- Ensure player stays within map bounds
+        return  -- Skip gravity, collision, and regular movement
+    end
 
     -- Horizontal movement
     if love.keyboard.isDown("a") then
@@ -184,14 +256,38 @@ function player.update(dt)
     bloodsplatter.update(dt)  -- Update the blood splatter
 end
 
+function player.triggerGhostMode()
+    -- Activate ghost mode without changing the player's position
+    isGhostMode = true
+    ghostTimer = ghostDuration  -- Set the ghost mode duration
+end
+
+function player.exitGhostMode()
+    -- Find the nearest free space outside of the wall and teleport to it smoothly
+    local teleportStep = 10  -- Step size to find a free space
+    targetPosition.x = player.x
+    targetPosition.y = player.y
+
+    -- Check surrounding spaces and find a free position
+    while player.checkCollision(targetPosition.x, targetPosition.y) do
+        targetPosition.x = targetPosition.x + teleportStep
+        targetPosition.y = targetPosition.y + teleportStep
+    end
+
+    -- Start teleporting smoothly and ensure the target position stays within the map bounds
+    targetPosition.x, targetPosition.y = constrainToBounds(targetPosition.x, targetPosition.y)
+    isTeleporting = true
+end
+
 function player.handlePlayerInput(key)
-    if key == "space" and currentJumps < maxJumps then
+    if key == "space" and not isGhostMode and currentJumps < maxJumps then
         player.velocityY = jumpVelocity  -- Apply an upward force
         currentJumps = currentJumps + 1  -- Increment jump count
         player.isGrounded = false  -- Player is now in the air
+    elseif key == "g" then
+        player.triggerGhostMode()  -- Activate ghost mode when 'g' is pressed
     end
 end
-
 
 function player.triggerBloodSplatter()
     bloodsplatter.trigger(player.x + player.width / 2, player.y + player.height / 2)
@@ -204,13 +300,15 @@ end
 function player.getHeight()
     return player.height
 end
-
 function player.draw()
+    -- Use the ghost quad if in ghost mode, otherwise use the regular quads
+    local currentQuad = isGhostMode and ghostQuad or quads[currentFrame]
+
     -- Scaling factors to scale down the sprite to player.width and player.height
     local scaleFactorX = player.width / 128  -- Original sprite width is 128
     local scaleFactorY = player.height / 128 -- Original sprite height is 128
 
-    -- ScaleX includes direction for flipping
+    -- Flip the sprite if heading left
     local scaleX = direction * scaleFactorX  -- 1 when facing right, -1 when facing left
     local scaleY = scaleFactorY
 
@@ -225,16 +323,33 @@ function player.draw()
     -- Draw the player
     love.graphics.draw(
         spriteSheet, 
-        quads[currentFrame], 
+        currentQuad, 
         drawX, drawY, 
         0, 
         scaleX, scaleY,
         originX, originY
     )
 
-
     -- Draw the blood splatter effect
     bloodsplatter.draw()
+
+    -- Draw blue overlay when in ghost mode
+    if isGhostMode then
+        love.graphics.setColor(0, 0, 1, 0.2)  -- Blue color with slight transparency
+
+        -- Calculate the overlay dimensions relative to the player's position
+        local overlayX = player.x - overlayWidth / 2  -- Center the overlay around the player
+        local overlayY = player.y - overlayHeight / 2  -- Center the overlay around the player
+
+        -- Draw the blue overlay relative to the player's position
+        love.graphics.rectangle("fill", overlayX, overlayY, 2000, 2000)
+        
+        love.graphics.setColor(1, 1, 1, 1)  -- Reset color after drawing
+    end
+end
+
+function player.isInGhostMode()
+    return isGhostMode
 end
 
 

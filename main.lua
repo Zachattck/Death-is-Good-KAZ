@@ -1,11 +1,13 @@
 local game = require("game")  -- Assuming game.lua is in the same directory as main.lua
-
 local pauseMenu = require("pauseMenu")
 
 -- Game states
-local currentState = "menu" -- Initially in the menu state
-local selectedOption = 1    -- Track selected menu option
+local currentState = "menu"  -- Initially in the menu state
+local selectedOption = 1  -- Track selected menu option
 local options = {"Start Game", "Options", "Exit"}  -- Main menu options
+
+-- Music
+local currentBackgroundMusic
 
 -- Screen settings
 local screenWidth, screenHeight = 1920, 1080
@@ -14,155 +16,124 @@ local screenWidth, screenHeight = 1920, 1080
 local menuOptions = {}
 local startImage, optionsImage, exitImage
 
---Fonts
+-- Fonts
 local akikaFont
 -- Load the title image and background music
 local titleImage
-local backgroundMusic
-local levelImage 
+local levelImage
 
 -- Load the images for options menu
 local optionsBackgroundImage
 local optionsMenuImageSlider
 local optionMenuSliderKnob
 local musicVolumeImage
-    
 
 -- Options menu settings
-local selectedOptionOption = 1  -- Track selected option in the options menu
 local volume = 1  -- Music volume (1 = max, 0 = mute)
-local volumeBarX, volumeBarY = 300, 250  -- Position of the volume bar
-local volumeBarWidth, volumeBarHeight = 300, 20  -- Size of the volume bar
-local volumeHandleRadius = 10 -- Handle size for the volume adjustment
-local sliderScale = 0.5  -- Scale for consistency
-
--- Mouse hover tracking for menu options
-local isHoveringStart = false
-local isHoveringOptions = false
-local isHoveringExit = false
-local isDraggingVolume = false  -- Track if volume handle is being dragged
-
-
 
 -- Fade effect variables
 local isFadingIn = true  -- Start with fade-in effect
 local isFadingOut = false
 local fadeAlpha = 1  -- Alpha starts fully opaque for fade-in
-local fadeSpeed = 0.5 -- Speed of the fade effect
+local fadeSpeed = 0.5  -- Speed of the fade effect
 local nextState = nil  -- Store the next state after fade-out
-
 
 -- Love2D callbacks
 function love.load()
-    
     -- Set screen size
     love.window.setMode(screenWidth, screenHeight)
     
     -- Set font size for the menu
     love.graphics.setFont(love.graphics.newFont(30))
-    --font
     akikaFont = love.graphics.newFont("assets/AKIKA.ttf", 36)
+    
     -- Load the title image for main menu
     titleImage = love.graphics.newImage("assets/title.png")
 
     -- Load the background image
     backgroundImage = love.graphics.newImage("assets/background.png")
-    
+
+    --load options menu images
+    optionsBackgroundImage = love.graphics.newImage("assets/backgroundImageOptionsMenu.png")
+    optionMenuSliderKnob = love.graphics.newImage("assets/sliderKnob.png")
+    optionsMenuImageSlider = love.graphics.newImage("assets/sliderBackground.png")
+    musicVolumeImage = love.graphics.newImage("assets/sandTexture.png")
+
     -- Load menu option images
     startImage = love.graphics.newImage("assets/start.png")
-    optionsImage = love.graphics.newImage("assets/options.png")  -- Added for options menu
+    optionsImage = love.graphics.newImage("assets/options.png")
     exitImage = love.graphics.newImage("assets/exit.png")
     menuOptions = {startImage, optionsImage, exitImage}
 
-    levelImage = love.graphics.newImage("assets/levelImage.png")
-
     -- Load and play background music
-    backgroundMusic = love.audio.newSource("assets/background_music.mp3", "stream")
-    backgroundMusic:setLooping(true)
-    love.audio.play(backgroundMusic)
-
-    loadOptionsMenuImages()  -- Load images for the options menu
+    currentBackgroundMusic = love.audio.newSource("assets/background_music.mp3", "stream")
+    currentBackgroundMusic:setLooping(true)
+    currentBackgroundMusic:play()
 
     game.load()
 end
 
-function loadOptionsMenuImages()
-    optionsBackgroundImage = love.graphics.newImage("assets/backgroundImageOptionsMenu.png")
-    optionsMenuImageSlider = love.graphics.newImage("assets/sliderBackground.png")
-    optionMenuSliderKnob = love.graphics.newImage("assets/sliderKnob.png")
-    musicVolumeImage = love.graphics.newImage("assets/sandTexture.png")
-end
-
 function love.update(dt)
-    -- Update fade effect
+    -- Handle fading in and out effects
     if isFadingIn then
         fadeAlpha = fadeAlpha - fadeSpeed * dt
         if fadeAlpha <= 0 then
             fadeAlpha = 0
-            isFadingIn = false  -- Stop fading in when complete
+            isFadingIn = false
         end
     elseif isFadingOut then
         fadeAlpha = fadeAlpha + fadeSpeed * dt
         if fadeAlpha >= 1 then
             fadeAlpha = 1
-            isFadingOut = false  -- Stop fading out when complete
+            isFadingOut = false
 
-            -- Handle the state change after fade-out
+            -- Transition to the next state after fade-out
             if nextState == "exit" then
-                love.event.quit()  -- Close the game if 'exit' is selected
+                love.event.quit()  -- Quit the game
+            elseif nextState == "cutscene" then
+                -- Start the cutscene once fading is complete
+                game.startCutscene(currentBackgroundMusic, volume)
+                currentState = "cutscene"
+                isFadingIn = true  -- Begin fading in again for the cutscene
             else
-                currentState = nextState  -- Switch to the next state
-                isFadingIn = true  -- Start fading in after state change
+                currentState = nextState  -- Switch to the next state directly
+                isFadingIn = true  -- Start fading in
             end
         end
     end
 
-    -- Only update game logic if not fading out
+    -- Game state logic
     if not isFadingOut then
         if currentState == "menu" then
             updateMenu()
+        elseif currentState == "cutscene" then
+            -- Check if the cutscene exists and is active before transitioning out
+            if game.cutscene and game.cutscene.isActive then
+                game.cutscene:update(dt)
+            else
+                -- Transition to gameplay after the cutscene ends
+                currentState = "playing"
+                isFadingIn = true  -- Fade in to the gameplay
+            end
         elseif currentState == "playing" then
-            if not pauseMenu.isPaused() then
-                game.update(dt)
-            end
-        elseif currentState == "options" then
-            -- Call volume set every frame while in the options menu to reflect slider position
-            backgroundMusic:setVolume(volume)
-
-            -- Update volume bar dragging if the knob is being dragged
-            if isDraggingVolume then
-                local mouseX = love.mouse.getX()
-
-                -- Calculate new volume based on mouse position, keeping it within slider bounds
-                local sliderX = (screenWidth - musicVolumeImage:getWidth() * 0.5) / 2
-                local sliderWidth = musicVolumeImage:getWidth() * 0.5
-                volume = math.min(math.max((mouseX - sliderX) / sliderWidth, 0), 1)
-
-                -- Update background music volume as the knob moves
-                backgroundMusic:setVolume(volume)
-            end
+            game.update(dt)  -- Update game logic here when in 'playing' state
         end
     end
 end
 
-
-
-
 function love.draw()
+    love.graphics.clear(0, 0, 0, 1)  -- Clear with a black background
+    
+    -- Delegate drawing based on the current game state
     if currentState == "menu" then
         drawMenu()
     elseif currentState == "options" then
         drawOptionsMenu()
-    elseif currentState == "playing" then
+    elseif currentState == "cutscene" or currentState == "playing" then
         game.draw()
-        
-        -- Draw the pause menu only if the game is paused
-        if pauseMenu.isPaused() then
-            pauseMenu.draw()  -- Draw the pause menu UI when paused
-        end
     end
 
-    -- Draw the fade effect on top of everything
+    -- Draw the fade effect on top of everything if fading
     if isFadingIn or isFadingOut then
         love.graphics.setColor(0, 0, 0, fadeAlpha)
         love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
@@ -170,105 +141,50 @@ function love.draw()
     end
 end
 
-
--- Handle mouse input
 function love.mousepressed(x, y, button)
-    if button == 1 then  -- Left mouse button
+    if button == 1 then
         if currentState == "menu" then
             handleMenuMouseInput(x, y)
         elseif currentState == "options" then
-            -- Check if the user clicked the volume handle or bar to start dragging
-            if isMouseOverVolumeHandle(x, y) then
-                isDraggingVolume = true
-            else
-                handleOptionsMenuMouseInput(x, y)
-            end
-        end
-    end
-end
-
-function love.mousereleased(x, y, button)
-    if button == 1 then
-        -- Stop dragging the volume handle
-        isDraggingVolume = false
-    end
-end
--- Pause game by "escape"
-function love.keypressed(key)
-
-    if currentState == "playing" then
-        if key == "escape" then
-            -- Toggle pause menu when escape is pressed
-            pauseMenu.toggle()
-        else
-            if not pauseMenu.isPaused() then
-                game.handleGameInput(key)
-            end
+            handleOptionsMenuMouseInput(x, y)
         end
     end
 end
 
 -- Menu functions
 function drawMenu()
-    local imageScaleFactor = 1.25  -- Scale factor for the images
-
-    -- Get the background image width and height
-    local backgroundWidth = backgroundImage:getWidth() * imageScaleFactor
-    local backgroundHeight = backgroundImage:getHeight() * imageScaleFactor
-
-    -- Calculate the position to center the background image
-    local backgroundX = (screenWidth - backgroundWidth) / 2
-    local backgroundY = (screenHeight - backgroundHeight) / 2
-
-    -- Draw the centered background image
-    love.graphics.draw(backgroundImage, backgroundX, backgroundY, 0, imageScaleFactor, imageScaleFactor)
-    
-
-
-    -- Draw the title image at the top of the screen
-    local titleScale = 0.25  -- Scale factor for the title image
-    local titleWidth = titleImage:getWidth() * titleScale
-    local titleHeight = titleImage:getHeight() * titleScale
-    local titleX = (screenWidth - titleWidth) / 2
-    love.graphics.draw(titleImage, titleX, 65, 0, titleScale, titleScale)
-
-
-    -- Set the scale for the menu option images
+    -- Draw background and menu options
     local scale = 0.4  -- Adjust this value to make images smaller or larger
     local buttonSpacing = 20  -- Spacing between buttons
 
     for i, option in ipairs(menuOptions) do
-        -- Get the original width and height of the images
         local optionWidth = option:getWidth() * scale
         local optionHeight = option:getHeight() * scale
-
-        -- Calculate the position to center the scaled images
         local x = (screenWidth - optionWidth) / 2
-        local y = 400 + ((optionHeight + buttonSpacing) * (i - 1))  -- Dynamically position buttons
-
-        -- Highlight the selected option or hover by changing color
-        if (i == 1 and isHoveringStart) or (i == 2 and isHoveringOptions) or (i == 3 and isHoveringExit) then
-            love.graphics.setColor(0.5, 0.5, 0.5)  -- Highlight hovered option
-        else
-            love.graphics.setColor(1, 1, 1)  -- Normal color for unselected options
-        end
-
-        -- Draw the image with scaling applied
+        local y = 400 + ((optionHeight + buttonSpacing) * (i - 1))
+        
+        love.graphics.setColor(1, 1, 1)  -- Normal color for unselected options
         love.graphics.draw(option, x, y, 0, scale, scale)
-    end
-
-    -- Reset color to white to prevent hover effects from affecting the fade
-    love.graphics.setColor(1, 1, 1)
-
-    -- Draw the fade effect on top of everything
-    if isFadingIn or isFadingOut then
-        love.graphics.setColor(0, 0, 0, fadeAlpha)  -- Black with changing opacity for fade
-        love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
-        love.graphics.setColor(1, 1, 1)  -- Reset color after drawing the fade
     end
 end
 
+function handleMenuMouseInput(x, y)
+    -- Detect click on the "Start Game" button to trigger the cutscene
+    local scale = 0.40
+    local buttonYStart = 400
+    local startImageWidth = startImage:getWidth() * scale
+    local startImageHeight = startImage:getHeight() * scale
 
+    if isMouseOverButton(x, y, startImageWidth, startImageHeight, (screenWidth - startImageWidth) / 2, buttonYStart) then
+        triggerFadeOut("cutscene")
+    end
+end
+
+function triggerFadeOut(state)
+    -- Trigger fade out effect and store next state
+    isFadingOut = true
+    nextState = state
+end
 
 function updateMenu()
     -- Update hover detection
@@ -291,14 +207,12 @@ function updateMenu()
     isHoveringExit = isMouseOverButton(mouseX, mouseY, exitImageWidth, exitImageHeight, (screenWidth - exitImageWidth) / 2, buttonYStart + startImageHeight + optionsImageHeight + (buttonSpacing * 2))
 end
 
-
--- Handle mouse input for the main menu
 function handleMenuMouseInput(x, y)
+    -- Mouse input handling logic for the menu
+
     local scale = 0.40
     local buttonYStart = 400
     local buttonSpacing = 20
-
-    -- Get the scaled dimensions of each button
     local startImageWidth = startImage:getWidth() * scale
     local startImageHeight = startImage:getHeight() * scale
     local optionsImageWidth = optionsImage:getWidth() * scale
@@ -306,27 +220,85 @@ function handleMenuMouseInput(x, y)
     local exitImageWidth = exitImage:getWidth() * scale
     local exitImageHeight = exitImage:getHeight() * scale
 
-    -- Check if Start Game was clicked
+    -- Check if the mouse is over the "Start Game" button
     if isMouseOverButton(x, y, startImageWidth, startImageHeight, (screenWidth - startImageWidth) / 2, buttonYStart) then
-        triggerFadeOut("playing")  -- Start the game after fading out
-    -- Check if Options was clicked
-    elseif isMouseOverButton(x, y, optionsImageWidth, optionsImageHeight, (screenWidth - optionsImageWidth) / 2, buttonYStart + startImageHeight + buttonSpacing) then
-        triggerFadeOut("options")  -- Go to options menu after fading out
-    -- Check if Exit was clicked
-    elseif isMouseOverButton(x, y, exitImageWidth, exitImageHeight, (screenWidth - exitImageWidth) / 2, buttonYStart + startImageHeight + optionsImageHeight + (buttonSpacing * 2)) then
-        triggerFadeOut("exit")  -- Quit the game after fading out
+        triggerFadeOut("cutscene")  -- Start game with cutscene
+    end
+
+    -- Check if the mouse is over the "Options" button
+    if isMouseOverButton(x, y, optionsImageWidth, optionsImageHeight, (screenWidth - optionsImageWidth) / 2, buttonYStart + startImageHeight + buttonSpacing) then
+        currentState = "options"  -- Switch to the options menu
+    end
+
+    -- Check if the mouse is over the "Exit" button
+    if isMouseOverButton(x, y, exitImageWidth, exitImageHeight, (screenWidth - exitImageWidth) / 2, buttonYStart + startImageHeight + optionsImageHeight + (buttonSpacing * 2)) then
+        triggerFadeOut("exit")  -- Exit the game
+    end
+end
+
+function drawMenu()
+    local imageScaleFactor = 1.25  -- Scale factor for the images
+
+    -- Get the background image width and height
+    local backgroundWidth = backgroundImage:getWidth() * imageScaleFactor
+    local backgroundHeight = backgroundImage:getHeight() * imageScaleFactor
+
+    -- Calculate the position to center the background image
+    local backgroundX = (screenWidth - backgroundWidth) / 2
+    local backgroundY = (screenHeight - backgroundHeight) / 2
+
+    -- Draw the centered background image
+    love.graphics.draw(backgroundImage, backgroundX, backgroundY, 0, imageScaleFactor, imageScaleFactor)
+    
+    -- Draw the title image at the top of the screen
+    local titleScale = 0.25  -- Scale factor for the title image
+    local titleWidth = titleImage:getWidth() * titleScale
+    local titleHeight = titleImage:getHeight() * titleScale
+    local titleX = (screenWidth - titleWidth) / 2
+    love.graphics.draw(titleImage, titleX, 65, 0, titleScale, titleScale)
+
+    -- Set the scale for the menu option images
+    local scale = 0.4  -- Adjust this value to make images smaller or larger
+    local buttonSpacing = 20  -- Spacing between buttons
+
+    -- Draw menu buttons and highlight the one that is hovered over
+    for i, option in ipairs(menuOptions) do
+        -- Get the original width and height of the images
+        local optionWidth = option:getWidth() * scale
+        local optionHeight = option:getHeight() * scale
+
+        -- Calculate the position to center the scaled images
+        local x = (screenWidth - optionWidth) / 2
+        local y = 400 + ((optionHeight + buttonSpacing) * (i - 1))  -- Dynamically position buttons
+
+        -- Highlight the selected option or hover by changing color
+        if (i == 1 and isHoveringStart) or (i == 2 and isHoveringOptions) or (i == 3 and isHoveringExit) then
+            love.graphics.setColor(0.5, 0.5, 0.5)  -- Highlight hovered option (grey)
+        else
+            love.graphics.setColor(1, 1, 1)  -- Normal color (white)
+        end
+
+        -- Draw the image with scaling applied
+        love.graphics.draw(option, x, y, 0, scale, scale)
+    end
+
+    -- Reset color to white to prevent hover effects from affecting the fade
+    love.graphics.setColor(1, 1, 1)
+
+    -- Draw the fade effect on top of everything
+    if isFadingIn or isFadingOut then
+        love.graphics.setColor(0, 0, 0, fadeAlpha)  -- Black with changing opacity for fade
+        love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
+        love.graphics.setColor(1, 1, 1)  -- Reset color after drawing the fade
     end
 end
 
 
-
-function triggerFadeOut(state)
-    isFadingOut = true
-    nextState = state  -- Set the next state to transition to after fading out
+function isMouseOverButton(mouseX, mouseY, buttonWidth, buttonHeight, buttonX, buttonY)
+    return mouseX >= buttonX and mouseX <= buttonX + buttonWidth and mouseY >= buttonY and mouseY <= buttonY + buttonHeight
 end
 
-
-
+-- Draw the Options Menu
 function drawOptionsMenu()
     -- Draw the background image
     local backgroundWidth = optionsBackgroundImage:getWidth()
@@ -435,13 +407,28 @@ function isMouseOverButton(mouseX, mouseY, buttonWidth, buttonHeight, buttonX, b
     return mouseX >= buttonX and mouseX <= buttonX + buttonWidth and mouseY >= buttonY and mouseY <= buttonY + buttonHeight
 end
 
-
-
-
--- Game functions (in game.lua)
-function updateGame(dt)
-    
-
-    game.update(dt)
+-- Handle mouse release for volume dragging
+function love.mousereleased(x, y, button)
+    if button == 1 then
+        -- Stop dragging the volume handle
+        isDraggingVolume = false
+    end
 end
 
+-- Handle mouse movement while dragging the volume slider
+function love.mousemoved(x, y, dx, dy)
+    if isDraggingVolume then
+        -- Calculate the slider movement based on the mouse X position
+        local sliderBackgroundWidth = 600
+        local actualSliderWidth = 500
+        local sliderX = (screenWidth - sliderBackgroundWidth) / 2
+        local actualSliderX = sliderX + (sliderBackgroundWidth - actualSliderWidth) / 2
+
+        -- Calculate the new volume value based on mouse X position
+        volume = (x - actualSliderX) / actualSliderWidth
+        volume = math.max(0, math.min(1, volume))  -- Clamp the volume between 0 and 1
+
+        -- Set the music volume accordingly
+        currentBackgroundMusic:setVolume(volume)
+    end
+end
