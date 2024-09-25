@@ -15,10 +15,11 @@ function Camera:position()
     return self.x, self.y
 end
 
-function Camera:lookAt(x, y, width, height)
-    self.x = x + (width / 2)  -- Offset x by half the player's width
-    self.y = y + (height / 2)  -- Offset y by half the player's height
+function Camera:lookAt(x, y)
+    self.x = x  -- Simply set the camera's x position to the player's x
+    self.y = y  -- Set the camera's y position to the player's y
 end
+
 
 
 function Camera:setZoom(zoomLevel)
@@ -26,11 +27,12 @@ function Camera:setZoom(zoomLevel)
 end
 
 function Camera:attach()
-    love.graphics.push()  -- Push current transformation onto the stack
+    love.graphics.push()  -- Save the current transformation
     love.graphics.translate(love.graphics.getWidth() / 2, love.graphics.getHeight() / 2)
-    love.graphics.scale(self.zoom, self.zoom)  -- Apply zoom before translation
-    love.graphics.translate(-self.x, -self.y)
+    love.graphics.scale(self.zoom, self.zoom)  -- Apply zoom
+    love.graphics.translate(-self.x, -self.y)  -- Translate based on the camera position
 end
+
 
 function Camera:detach()
     love.graphics.pop()  -- Pop the transformation off the stack

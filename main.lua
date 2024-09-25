@@ -1,6 +1,6 @@
 local game = require("game")  -- Assuming game.lua is in the same directory as main.lua
 local pauseMenu = require("pauseMenu")
-
+local CutsceneManager = require("CutsceneManager")
 -- Game states
 local currentState = "menu"  -- Initially in the menu state
 local selectedOption = 1  -- Track selected menu option
@@ -72,7 +72,6 @@ function love.load()
 
     game.load()
 end
-
 function love.update(dt)
     -- Handle fading in and out effects
     if isFadingIn then
@@ -91,8 +90,8 @@ function love.update(dt)
             if nextState == "exit" then
                 love.event.quit()  -- Quit the game
             elseif nextState == "cutscene" then
-                -- Start the cutscene once fading is complete
-                game.startCutscene(currentBackgroundMusic, volume)
+                -- Start the cutscene via game.startCutscene
+                game.startCutscene(currentMusic, volume)  -- Properly calling the function
                 currentState = "cutscene"
                 isFadingIn = true  -- Begin fading in again for the cutscene
             else
@@ -106,20 +105,14 @@ function love.update(dt)
     if not isFadingOut then
         if currentState == "menu" then
             updateMenu()
-        elseif currentState == "cutscene" then
-            -- Check if the cutscene exists and is active before transitioning out
-            if game.cutscene and game.cutscene.isActive then
-                game.cutscene:update(dt)
-            else
-                -- Transition to gameplay after the cutscene ends
-                currentState = "playing"
-                isFadingIn = true  -- Fade in to the gameplay
-            end
+        elseif currentState == "cutscene" and game.cutscene then
+            game.cutscene:update(dt)  -- Delegate cutscene logic to CutsceneManager
         elseif currentState == "playing" then
             game.update(dt)  -- Update game logic here when in 'playing' state
         end
     end
 end
+
 
 function love.volumeChecker()
     return volume
