@@ -25,7 +25,7 @@ local ghostTimer = 0
 local ghostDuration = 5  -- Ghost mode lasts 5 seconds
 local ghostQuad  -- Quad for the ghost sprite
 local ghostSpeed = 20  -- Drastically reduced movement speed in ghost mode
-
+local teleportSpeed = 10  -- Speed of teleportation
 -- Map boundaries
 local mapWidth =  10000 -- Example map width
 local mapHeight = 10000  -- Example map height
@@ -386,8 +386,8 @@ function drawLightingEffect()
         local zoom = cam.zoom or 1
 
         -- Use player's current position directly (centered) and apply offset
-        local offsetX = 15  -- Adjust this for manual horizontal offset
-        local offsetY = 10  -- Adjust this for manual vertical offset
+        local offsetX = 16  -- Adjust this for manual horizontal offset
+        local offsetY = 12  -- Adjust this for manual vertical offset
         local playerCenterX = player.x + offsetX
         local playerCenterY = player.y + offsetY
 

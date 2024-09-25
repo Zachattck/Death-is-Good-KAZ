@@ -9,6 +9,9 @@ cam = nil  -- Declare camera globally so it can be accessed anywhere
 local screenWidth, screenHeight = love.graphics.getDimensions()
 local cutscene  -- Cutscene variable
 
+ -- Target volume level for the fade-in
+local fadeInSpeed = 0.5 
+
 game.fadeInAlpha = 1  -- Initial fade-in alpha value
 
 
@@ -85,14 +88,15 @@ function game.update(dt)
 
             -- Fade-in reapply if needed
             game.fadeInAlpha = 1  
-
-            -- Play main menu background music again
-            if not game.mainMenuMusic then
-                local volume = love.volumeChecker()  -- Check if volume is set
-                game.mainMenuMusic = love.audio.newSource("assets/background_Music.mp3", "static")
-                game.mainMenuMusic:setLooping(true)
-                game.mainMenuMusic:setVolume(volume)
-                game.mainMenuMusic:play()
+            local targetVolume = love.volumeChecker() -- Get the target volume from the settings
+            if game.mainMenuMusic then
+                local currentVolume = game.mainMenuMusic:getVolume()
+                
+                -- Gradually increase the volume until it reaches the target volume
+                if currentVolume < targetVolume then
+                    local newVolume = math.min(currentVolume + fadeInSpeed * dt, targetVolume)
+                    game.mainMenuMusic:setVolume(newVolume)
+                end
             end
         end -- This is the missing `end` for the `if not game.cutscene.isActive` block
     elseif game.currentState == "playing" then
@@ -112,6 +116,15 @@ function game.update(dt)
     end
 end
 
+
+function playMainMenuMusic()
+    if not game.mainMenuMusic then
+        game.mainMenuMusic = love.audio.newSource("assets/background_Music.mp3", "static")
+        game.mainMenuMusic:setLooping(true)
+        game.mainMenuMusic:setVolume(0)  -- Start with volume at 0
+        game.mainMenuMusic:play()
+    end
+end
 
 -- Draw the game or the cutscene depending on the state
 function game.draw()
