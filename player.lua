@@ -44,6 +44,10 @@ player.wallDirection = 0  -- Direction of the wall the player is sliding on
 local maxJumps = 1
 local currentJumps = 0  -- Track how many times the player has jumped
 
+-- Teleport variables
+local targetPosition = { x = 0, y = 0 }  -- Initialize targetPosition
+local isTeleporting = false  -- Initialize teleporting flag
+
 -- Linear interpolation function for smooth teleportation
 local function lerp(a, b, t)
     return a + (b - a) * t
@@ -55,7 +59,6 @@ local function constrainToBounds(x, y)
     y = math.max(0, math.min(mapHeight - player.height, y))  -- Ensure y is within bounds
     return x, y
 end
-
 function player.load()
     player.x = 300
     player.y = 1015
@@ -106,40 +109,38 @@ function player.load()
 
     bloodsplatter.load()  -- Load the blood splatter effect
 end
-
 function player.checkCollision(x, y)
     if isGhostMode then return false end  -- No collision in ghost mode
 
-    -- Define the amount to shrink the player's collision box
-    local shrinkWidth = 6  -- Reduce the hitbox width by 6 pixels (3 pixels on each side)
-    local shrinkHeight = 4  -- Reduce the hitbox height by 4 pixels (2 pixels on top and bottom)
+    -- Shrink player's hitbox for collision
+    local shrinkWidth = 6
+    local shrinkHeight = 4
 
-    -- Define player's bounds based on position, shrinking width and height
-    local playerLeft = x + shrinkWidth / 2  -- Shrink from left
-    local playerRight = x + player.width - shrinkWidth / 2  -- Shrink from right
-    local playerTop = y + shrinkHeight / 2  -- Shrink from top
-    local playerBottom = y + player.height - shrinkHeight / 2  -- Shrink from bottom
+    -- Player's bounding box
+    local playerLeft = x + shrinkWidth / 2
+    local playerRight = x + player.width - shrinkWidth / 2
+    local playerTop = y + shrinkHeight / 2
+    local playerBottom = y + player.height - shrinkHeight / 2
 
-    -- Define wall bounds
+    -- Wall bounding box
     local wallLeft = wall.x
     local wallRight = wall.x + wall.width
     local wallTop = wall.y
     local wallBottom = wall.y + wall.height
 
-    -- Check bounding box collision first (with adjusted player width/height)
+    -- Check if the player is within the wall bounds (basic AABB collision check)
     if playerRight > wallLeft and playerLeft < wallRight and
        playerBottom > wallTop and playerTop < wallBottom then
         -- Now check pixel-perfect collision using collisionMask
         local localPlayerX = math.floor(playerLeft - wall.x)
         local localPlayerY = math.floor(playerTop - wall.y)
 
-        -- Check if the player's pixels are within the bounds of the wall image
-        for px = 0, player.width - shrinkWidth - 1 do  -- Adjust pixel loop by shrink amount
-            for py = 0, player.height - shrinkHeight - 1 do  -- Adjust pixel loop by shrink amount
+        -- Iterate over player's pixels
+        for px = 0, player.width - shrinkWidth - 1 do
+            for py = 0, player.height - shrinkHeight - 1 do
                 local maskX = localPlayerX + px
                 local maskY = localPlayerY + py
 
-                -- Make sure we're within the bounds of the wall image
                 if maskX >= 0 and maskY >= 0 and maskX < wall.width and maskY < wall.height then
                     if collisionMask[maskX] and collisionMask[maskX][maskY] then
                         return true -- Collision detected with non-transparent pixel
@@ -149,9 +150,8 @@ function player.checkCollision(x, y)
         end
     end
 
-    return false -- No collision detected
+    return false -- No collision
 end
-
 function player.update(dt)
     local dx, dy = 0, 0
     state = "idle"  -- Assume the player is idle unless they are moving
@@ -164,16 +164,15 @@ function player.update(dt)
      end
     -- Handle smooth teleportation
     if isTeleporting then
-        -- Use lerp for smooth movement and constrain the player to map bounds
         player.x = lerp(player.x, targetPosition.x, teleportSpeed * dt)
         player.y = lerp(player.y, targetPosition.y, teleportSpeed * dt)
-        player.x, player.y = constrainToBounds(player.x, player.y)  -- Ensure player stays within map bounds
+        player.x, player.y = constrainToBounds(player.x, player.y)
 
-        -- Check if the player is close enough to the target position
+        -- Stop teleporting once close enough to the safe position
         if math.abs(player.x - targetPosition.x) < 1 and math.abs(player.y - targetPosition.y) < 1 then
-            isTeleporting = false  -- Stop teleporting once close enough
+            isTeleporting = false
         end
-        return
+        return -- Skip further logic during teleportation
     end
 
     -- Handle ghost mode
@@ -275,19 +274,30 @@ function player.triggerGhostMode()
 end
 
 function player.exitGhostMode()
-    -- Find the nearest free space outside of the wall and teleport to it smoothly
-    local teleportStep = 10  -- Step size to find a free space
+    -- Smoothly teleport player out of wall
+    local teleportStep = 10  -- Step size for searching a free position
     targetPosition.x = player.x
     targetPosition.y = player.y
 
-    -- Check surrounding spaces and find a free position
-    while player.checkCollision(targetPosition.x, targetPosition.y) do
+    -- Find the nearest free position step by step
+    local safePositionFound = false
+
+    -- Loop to find the nearest non-collidable position by expanding outward
+    while player.checkCollision(targetPosition.x, targetPosition.y) and not safePositionFound do
+        -- Try moving horizontally and vertically by teleportStep
         targetPosition.x = targetPosition.x + teleportStep
         targetPosition.y = targetPosition.y + teleportStep
+
+        -- Check map bounds
+        targetPosition.x, targetPosition.y = constrainToBounds(targetPosition.x, targetPosition.y)
+
+        -- Check again for collision
+        if not player.checkCollision(targetPosition.x, targetPosition.y) then
+            safePositionFound = true
+        end
     end
 
-    -- Start teleporting smoothly and ensure the target position stays within the map bounds
-    targetPosition.x, targetPosition.y = constrainToBounds(targetPosition.x, targetPosition.y)
+    -- Gradually move the player to the target position using lerp
     isTeleporting = true
 end
 
@@ -354,7 +364,7 @@ function player.draw()
         local overlayY = player.y   -- Center the overlay around the player
 
         -- Draw the blue overlay relative to the player's position
-        love.graphics.rectangle("fill", overlayX, overlayY, 2000, 2000)
+        love.graphics.rectangle("fill", 0,0, 2000, 2000)
         
         love.graphics.setColor(1, 1, 1, 1)  -- Reset color after drawing
     end
@@ -376,7 +386,7 @@ function drawLightingEffect()
         local zoom = cam.zoom or 1
 
         -- Use player's current position directly (centered) and apply offset
-        local offsetX = 14  -- Adjust this for manual horizontal offset
+        local offsetX = 15  -- Adjust this for manual horizontal offset
         local offsetY = 10  -- Adjust this for manual vertical offset
         local playerCenterX = player.x + offsetX
         local playerCenterY = player.y + offsetY

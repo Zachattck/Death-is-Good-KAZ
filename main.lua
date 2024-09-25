@@ -121,6 +121,10 @@ function love.update(dt)
     end
 end
 
+function love.volumeChecker()
+    return volume
+end
+
 function love.draw()
     love.graphics.clear(0, 0, 0, 1)  -- Clear with a black background
     

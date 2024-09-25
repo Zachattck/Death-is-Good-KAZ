@@ -22,6 +22,9 @@ function game.load()
     cam = Camera()
     cam:setZoom(4)
 
+
+    
+
     -- Load the wall image
     wall.image = love.graphics.newImage("assets/mapPlatforms.png")
     wall.x = 0
@@ -85,9 +88,10 @@ function game.update(dt)
 
             -- Play main menu background music again
             if not game.mainMenuMusic then
+                local volume = love.volumeChecker()  -- Check if volume is set
                 game.mainMenuMusic = love.audio.newSource("assets/background_Music.mp3", "static")
                 game.mainMenuMusic:setLooping(true)
-                game.mainMenuMusic:setVolume(0.5)
+                game.mainMenuMusic:setVolume(volume)
                 game.mainMenuMusic:play()
             end
         end -- This is the missing `end` for the `if not game.cutscene.isActive` block
