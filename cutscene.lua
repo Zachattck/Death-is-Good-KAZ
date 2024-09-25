@@ -33,20 +33,20 @@ end
 
 function Cutscene:fadeOutOtherMusic(dt)
     if self.currentMusic and not self.isMusicFaded then
-        -- Fade out the current music
-        self.musicFadeTimer = self.musicFadeTimer - dt
+        -- Gradually reduce the volume
         local currentVolume = self.currentMusic:getVolume()
-        local newVolume = math.max(0, currentVolume - (self.fadeOutSpeed * dt * 10))
+        local newVolume = math.max(0, currentVolume - (self.fadeOutSpeed * dt * 10))  -- Adjust fade speed multiplier if needed
         self.currentMusic:setVolume(newVolume)
 
-
-        if newVolume <= 0 or self.musicFadeTimer <= 0 then
+        -- Stop the music when the volume reaches 0
+        if newVolume <= 0 then
             self.currentMusic:stop()
             self.isMusicFaded = true
-
         end
     end
 end
+
+
 
 function Cutscene:load()
     -- Play background music if available
