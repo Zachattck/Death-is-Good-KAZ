@@ -25,6 +25,27 @@ function game.load()
     cam = Camera()
     cam:setZoom(4)
 
+game.backgroundLayers = {
+    love.graphics.newImage("assets/mapBackgrounds.png"),
+    love.graphics.newImage("assets/mapRelics.png"),
+    love.graphics.newImage("assets/mapTraps.png"),
+    love.graphics.newImage("assets/mapLadders.png"),
+    love.graphics.newImage("assets/LVLDoors.png"),
+    love.graphics.newImage("assets/LVLWalls.png"),
+    love.graphics.newImage("assets/mapPlatforms.png")
+}
+
+-- Set their positions (optional) if they need to be placed differently
+game.backgroundPositions = {
+    {x = 0, y = 0},
+    {x = 0, y = 0},
+    {x = 0, y = 0},
+    {x = 0, y = 0},
+    {x = 0, y = 0},
+    {x = 0, y = 0},
+    {x = 0, y = 0}
+}
+
 
     
 
@@ -41,10 +62,10 @@ end
 -- Function to start the cutscene
 function game.startCutscene(currentMusic, volume)
     game.cutscene = Cutscene:new({
-        "It was a normal archeological dig... at the pyramids",
-        "until...",
-        "oh man I've gotta find my way out of this place now"
-    }, 
+        "Dennis was exploring the pyramid, when he became trapped inside ... Now its up to him to rescue himself!",
+        "HINT: Dennis can't go through walls but his ghost can",
+        "Let your journey begin, navigate this dream or be trapped forever"
+    },
     "assets/introImage.png",  -- Image
     "assets/introBackgroundMusic.mp3",  -- Background music
     "assets/introImageSound.mp3",  -- Sound effect for the image
@@ -54,7 +75,7 @@ function game.startCutscene(currentMusic, volume)
     volume,  -- Pass the volume level
     currentMusic  -- Pass the current music to fade out
     )
-
+ 
     -- Switch to the cutscene state
     game.currentState = "cutscene"
     game.cutscene:load()  -- Load and start the cutscene
@@ -136,19 +157,24 @@ function game.draw()
         -- Otherwise, draw the regular game elements
         love.graphics.clear(0, 0, 0, 1)  -- Clear the screen to black
 
+        -- Draw the 7 background layers in order (no parallax effect)
+        for i, layer in ipairs(game.backgroundLayers) do
+            local posX = game.backgroundPositions[i].x
+            local posY = game.backgroundPositions[i].y
+            love.graphics.draw(layer, posX, posY)
+        end
+
         -- Attach the camera and draw game objects
         cam:attach()  -- Only attach the camera when rendering the game world
         love.graphics.setColor(1, 1, 1)
         love.graphics.draw(wall.image, wall.x, wall.y)
+        
         -- Draw the player
         print("Drawing player at position: ", player.x, player.y)
         player.draw()  -- Draw the player
-        
 
         -- Detach the camera for any UI or effects
         cam:detach()
-
-        
 
         -- Draw the pause menu if necessary
         if pauseMenu.isPaused() then
@@ -158,11 +184,12 @@ function game.draw()
         -- Apply fade-in effect during launch
         if game.fadeInAlpha > 0 then
             love.graphics.setColor(0, 0, 0, game.fadeInAlpha)
-            love.graphics.rectangle("fill", 0, 0, 2000 , 2000)
+            love.graphics.rectangle("fill", 0, 0, 2000, 2000)
             love.graphics.setColor(1, 1, 1, 1)  -- Reset color after drawing
         end
     end
 end
+
 
 
 
