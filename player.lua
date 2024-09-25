@@ -47,6 +47,8 @@ local currentJumps = 0  -- Track how many times the player has jumped
 -- Ladder Logic
 local LADDER = 2
 local player = {}
+local ladderSpriteSheet
+local ladderQuad
 
 player.isOnLadder = false
 -- Teleport variables
@@ -140,6 +142,12 @@ function player.load()
     player.speed = 100  -- Movement speed
     player.velocityY = 0
     player.isGrounded = false
+
+    ladderSpriteSheet = love.graphics.newImage("assets/laddervan.png")
+
+    local spriteSize = 128
+    ladderQuad = love.graphics.newQuad(0, 0, spriteSize, spriteSize, 
+    ladderSpriteSheet:getWidth(), ladderSpriteSheet:getHeight())
 end
 function player.checkCollision(x, y)
     if isGhostMode then return false end  -- No collision in ghost mode
@@ -462,7 +470,43 @@ function player.draw()
     end
 
     -- Draw player on ladder
-    
+    local currentQuad
+    local currentSpriteSheet = spriteSheet  -- Default to normal sprite sheet
+
+    -- Check if the player is on a ladder and switch to laddervan.png
+    if player.isOnLadder then
+        currentQuad = ladderQuad  -- Use ladder quad
+        currentSpriteSheet = ladderSpriteSheet  -- Use laddervan.png sprite sheet
+    else
+        -- Normal state: ghost mode or regular movement
+        currentQuad = isGhostMode and ghostQuad or quads[currentFrame]
+    end
+
+    -- Scaling factors to scale down the sprite to player.width and player.height
+    local scaleFactorX = player.width / 128  -- Original sprite width is 128
+    local scaleFactorY = player.height / 128 -- Original sprite height is 128
+
+    -- Flip the sprite if heading left
+    local scaleX = direction * scaleFactorX  -- 1 when facing right, -1 when facing left
+    local scaleY = scaleFactorY
+
+    -- Set the origin to the center of the sprite
+    local originX = 64  -- Half of the original sprite width (128 / 2)
+    local originY = 64  -- Half of the original sprite height (128 / 2)
+
+    -- Calculate the draw position (center of the player)
+    local drawX = player.x + player.width / 2
+    local drawY = player.y + player.height / 2
+
+    -- Draw the player with either the regular or ladder sprite
+    love.graphics.draw(
+        currentSpriteSheet, 
+        currentQuad, 
+        drawX, drawY, 
+        0, 
+        scaleX, scaleY, 
+        originX, originY
+    )
 end
 
 function player.isInGhostMode()
