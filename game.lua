@@ -56,7 +56,9 @@ game.backgroundPositions = {
     wall.width = wall.image:getWidth()
     wall.height = wall.image:getHeight()
 
+
     player.load()  -- Load the player and its assets
+
 end
 
 -- Function to start the cutscene
@@ -65,7 +67,9 @@ function game.startCutscene(currentMusic, volume)
         "Dennis was exploring the pyramid, when he became trapped inside ... Now its up to him to rescue himself!",
         "HINT: Dennis can't go through walls but his ghost can",
         "Let your journey begin, navigate this dream or be trapped forever"
-    },
+
+    }, 
+
     "assets/introImage.png",  -- Image
     "assets/introBackgroundMusic.mp3",  -- Background music
     "assets/introImageSound.mp3",  -- Sound effect for the image
@@ -94,6 +98,8 @@ function game.handleGameInput(key)
     if not pauseMenu.isPaused() then
         player.handlePlayerInput(key)  -- Forward input to the player's handler
     end
+    ---camera
+    cam:lookAt(player:getWidth()/2,  player:getHeight()/2)
 end
 
 -- Update the game state
@@ -135,6 +141,7 @@ function game.update(dt)
     if game.fadeInAlpha > 0 then
         game.fadeInAlpha = game.fadeInAlpha - dt * 0.5  -- Adjust fade speed as needed
     end
+
 end
 
 
