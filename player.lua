@@ -214,6 +214,8 @@ function updateNormalMode(dt)
         currentAnimation = animations.climb
         return
     elseif collisionType == SPIKE then
+        print("Player has died! Returning to last known checkpoint.")
+        player.respawn()
         return
     elseif collisionType == SACRIFICE_ALTAR then
         isGhostMode = true
@@ -246,7 +248,15 @@ function updateNormalMode(dt)
         currentAnimation = animations.idle
     end
 end
-
+ -- Respawn player at most recent checkpoint
+function player.respawn()
+    player.x = math.max(0, player.x - 50)  -- Replace coordinates 
+    player.y = player.y - 50  -- Replace coordinates 
+    player.velocityY = 0  -- Reset vertical velocity
+    player.isGrounded = false  -- Reset grounded status
+    currentJumps = 0  -- Reset jump count
+    print("You have been respawned at the most recent checkpoint, Watch your step!:")
+end 
 -- Update movement on ladder
 -- Update movement on ladder with wall collision checks
 function updateLadderMode(dt)
