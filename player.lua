@@ -4,7 +4,7 @@ local wall = {}
 local collisionLayers = {}  -- Holds different collision layers
 local cam = require("camera")  -- Initialize the camera
 -- Collision types
-local LADDER, SPIKE, SACRIFICE_ALTAR, GROUND, WIN_BED, = 1, 2, 3, 4, 5
+local LADDER, SPIKE, SACRIFICE_ALTAR, GROUND, WIN_BED = 1, 2, 3, 4, 5
 
 -- Player properties
 local spriteSheet
@@ -27,6 +27,11 @@ local playerSpeed = 100
 local ladderSpeed = 75
 local flickerOffset = 0
 local maxJumps, currentJumps = 1, 0
+
+local akikaFont = love.graphics.newFont("assets/Akika.ttf", 12)
+--Text properties
+local displayText = nil
+--win stuff/gameplay stuff
 
 local victorySound  -- Declare variable for the victory sound
 local winTimer = 5 -- Time in seconds before closing the game after winning
@@ -55,6 +60,8 @@ function player.load()
     wall.width = wall.image:getWidth()
     wall.height = wall.image:getHeight()
 
+
+
     -- Load collision layers
     loadCollisionLayers()
 
@@ -66,7 +73,7 @@ function player.load()
 
         -- Initialize checkpoint positions
         checkpointPositions = {
-            {x = 400, y = 600},  -- Default respawn position for checkpoint 1
+            {x = 1635, y = 339},  -- Default respawn position for checkpoint 1
             {x = 500, y = 600},  -- Respawn position for checkpoint 2
             {x = 600, y = 600}   -- Respawn position for checkpoint 3
         }
@@ -186,7 +193,7 @@ function player.checkCollision(x, y)
 end
 
 -- Basic collision detection with smaller hitbox
-function basicCollision(x, y, width, height, obj, mask)
+function basicCollision(x, y, width, height, obj, mask, collisionType)
     local hitboxLeft = x + (player.width - player.hitboxWidth) / 2
     local hitboxTop = y + (player.height - player.hitboxHeight) / 2
     local hitboxRight = hitboxLeft + player.hitboxWidth
@@ -196,11 +203,29 @@ function basicCollision(x, y, width, height, obj, mask)
     local wallTop, wallBottom = obj.y, obj.y + obj.height
 
     if hitboxRight > wallLeft and hitboxLeft < wallRight and hitboxBottom > wallTop and hitboxTop < wallBottom then
-        for px = 0, player.hitboxWidth - 1 do
-            for py = 0, player.hitboxHeight - 1 do
-                local maskX = math.floor(hitboxLeft - obj.x + px)
-                local maskY = math.floor(hitboxTop - obj.y + py)
-                if mask[maskX] and mask[maskX][maskY] then
+        -- For spikes, shrink the collision area
+        local shrinkFactor = 0.5  -- Adjust this factor to change the spike hitbox size
+        local shrinkLeft, shrinkRight, shrinkTop, shrinkBottom
+
+        -- Check if we're dealing with the spike collision layer
+        if collisionType == SPIKE then
+            -- Shrink the hitbox for spikes
+            shrinkLeft = hitboxLeft + player.width * (1 - shrinkFactor) / 2
+            shrinkRight = hitboxRight - player.width * (1 - shrinkFactor) / 2
+            shrinkTop = hitboxTop + player.height * (1 - shrinkFactor) / 2
+            shrinkBottom = hitboxBottom - player.height * (1 - shrinkFactor) / 2
+        else
+            -- Use default hitbox for other objects
+            shrinkLeft = hitboxLeft
+            shrinkRight = hitboxRight
+            shrinkTop = hitboxTop
+            shrinkBottom = hitboxBottom
+        end
+
+        -- Check collision with the mask
+        for px = math.floor(shrinkLeft - obj.x), math.floor(shrinkRight - obj.x - 1) do
+            for py = math.floor(shrinkTop - obj.y), math.floor(shrinkBottom - obj.y - 1) do
+                if mask[px] and mask[px][py] then
                     return true
                 end
             end
@@ -208,6 +233,7 @@ function basicCollision(x, y, width, height, obj, mask)
     end
     return false
 end
+
 
 -- Player movement update
 function player.update(dt)
@@ -231,6 +257,8 @@ function updateNormalMode(dt)
     local dx, dy = 0, 0
     local moving = false
     if player.velocityY == nil then player.velocityY = 0 end
+    -- Clear the text if no relevant object is nearby
+    displayText = nil
 
     -- Horizontal movement
     if love.keyboard.isDown("a") then
@@ -262,10 +290,12 @@ function updateNormalMode(dt)
         bloodsplatter.trigger(player.x, player.y)  -- Trigger blood splatter effect
         player.respawn()
         return
-    elseif collisionTypeX == SACRIFICE_ALTAR then
-        -- Trigger ghost mode but don't block movement
-        player.isGhostModePossible = true
-        handleCheckpoint()  -- Handle checkpoint
+-- Inside the collision detection for SACRIFICE_ALTAR:
+elseif collisionTypeX == SACRIFICE_ALTAR then
+    -- Show text above the player's head when near the sacrifice altar
+    displayText = "[E] Sacrifice"
+    player.isGhostModePossible = true
+    handleCheckpoint()  -- Handle checkpoint
     elseif collisionTypeX == WIN_BED then
         -- Trigger win event but don't block movement
         player.win()
@@ -323,7 +353,7 @@ end
 function updateLadderMode(dt)
     local dx, dy = 0, 0
     local moving = false
-
+    displayText = nil
     -- Horizontal movement on the ladder
     if love.keyboard.isDown("a") then
         dx = -ladderSpeed * dt
@@ -382,7 +412,7 @@ end
 -- Update movement in ghost mode
 function updateGhostMode(dt)
     local dx, dy = 0, 0
-
+    displayText = nil
     -- Change the animation to ghost mode
     currentAnimation = animations.ghost
     -- Update the ghost animation
@@ -418,7 +448,6 @@ function updateGhostMode(dt)
 end
 
 
--- Draw player and lighting
 function player.draw()
     currentAnimation = currentAnimation or animations.idle
     local frame = currentAnimation.frames[currentAnimation.currentFrame or 1]
@@ -426,10 +455,24 @@ function player.draw()
     local scaleY = player.height / 128
     local offsetX = (direction == -1) and player.width or 0
 
+    -- Draw the player sprite
     love.graphics.draw(spriteSheet, frame, player.x + offsetX, player.y, 0, scaleX, scaleY, player.width / 2, player.height / 2)
+
+    -- Draw the text above the player's head, if available
+if displayText then
+    love.graphics.setFont(akikaFont)  -- Set Akika font
+    local textX = player.x + player.width
+    local textY = player.y - player.height - 3  -- Position above player's head
+    love.graphics.setColor(1, 1, 1, 1)  -- Set color to white
+    love.graphics.print(displayText, textX, textY)
+    love.graphics.setFont(love.graphics.getFont())  -- Reset font to default after drawing
+end
+    
+
     bloodsplatter.draw()
     drawLightingEffect()
 end
+
 
 -- Draw lighting effect
 function drawLightingEffect()
@@ -504,6 +547,7 @@ function player.handleJump()
         end
     end
 end
+
 function player.win()
     if not gameWon then
         gameWon = true  -- Set the flag to true to start the winning sequence
