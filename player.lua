@@ -1,79 +1,39 @@
 local player = {}
 local bloodsplatter = require("bloodsplatter")
-
 local wall = {}
-local imageData, imageDataLadders, collisionMask
+local collisionLayers = {}  -- Holds different collision layers
+local cam = require("camera")  -- Initialize the camera
+-- Collision types
+local LADDER, SPIKE, SACRIFICE_ALTAR, GROUND = 1, 2, 3, 4
 
+-- Player properties
 local spriteSheet
 local quads = {}
-local currentFrame = 1
-local frameTimer = 0
-local frameSpeed = 0.1  -- Speed at which to switch frames
-local totalFrames = 5  -- We're only looping the first 5 frames
+local animations = {}
+local currentAnimation
 local direction = 1  -- 1 for right, -1 for left
-local state = "idle"  -- Can be "idle" or "moving"
 
--- Flicker parameters
-local flickerTimer = 0
-local flickerInterval = 0.01
-local flickerStrength = 1  -- Adjusted strength to match old logic
+-- Movement properties
+local isGhostMode, ghostTimer, ghostDuration = false, 0, 5
+local gravity, jumpVelocity, wallSlideGravity = 800, -375, 200
+local ghostSpeed = 150
+local playerSpeed = 100
+local ladderSpeed = 75
 local flickerOffset = 0
+local maxJumps, currentJumps = 1, 0
 
--- Ghost mode variables
-local isGhostMode = false
-local ghostTimer = 0
-local ghostDuration = 5  -- Ghost mode lasts 5 seconds
-local ghostQuad  -- Quad for the ghost sprite
-local ghostSpeed = 20  -- Drastically reduced movement speed in ghost mode
-local teleportSpeed = 10  -- Speed of teleportation
-
--- Map boundaries
-local mapWidth =  10000 -- Example map width
-local mapHeight = 10000  -- Example map height
-
--- Gravity and movement variables
-local gravity = 800  -- Increase gravity for faster falling
-local jumpVelocity = -375  -- Lower jump height
-local wallSlideGravity = 200  -- Reduced gravity while sliding down walls
-
-player.velocityY = 0  -- Player's vertical velocity
-player.isGrounded = false  -- Track whether the player is on the ground
-player.isTouchingWall = false  -- Track whether the player is touching a wall
-player.wallDirection = 0  -- Direction of the wall the player is sliding on
-
--- Jump Logic
-local maxJumps = 1
-local currentJumps = 0  -- Track how many times the player has jumped
-
--- Ladder Logic
-local LADDER = 2
-local player = {}
-local ladderSpriteSheet
-local ladderQuad
-
-player.isOnLadder = false
--- Teleport variables
-local targetPosition = { x = 0, y = 0 }  -- Initialize targetPosition
-local isTeleporting = false  -- Initialize teleporting flag
-
--- Linear interpolation function for smooth teleportation
-local function lerp(a, b, t)
-    return a + (b - a) * t
-end
-
--- Constrain the player within the map boundaries
-local function constrainToBounds(x, y)
-    x = math.max(0, math.min(mapWidth - player.width, x))  -- Ensure x is within bounds
-    y = math.max(0, math.min(mapHeight - player.height, y))  -- Ensure y is within bounds
-    return x, y
-end
+-- Initialize player values
 function player.load()
-    print("Loading player...")  -- Debug log
-    player.x = 1
-    player.y = 1
-    player.width = 32
-    player.height = 32
-    player.speed = 100  -- Movement speed
+    player.x = player.x or 400
+    player.y = player.y or 600  -- Adjust this value to ensure it's above the ground
+    player.width = 30
+    player.height = 30
+    player.velocityY = player.velocityY or 0
+    player.isGrounded = false
+    player.isTouchingWall = false
+    
+    player.hitboxWidth = player.width * 0.6  -- Shrinks hitbox width by 40%
+    player.hitboxHeight = player.height * 0.6  -- Shrinks hitbox height by 20%
 
     -- Load the wall image
     wall.image = love.graphics.newImage("assets/mapPlatforms.png")
@@ -82,334 +42,349 @@ function player.load()
     wall.width = wall.image:getWidth()
     wall.height = wall.image:getHeight()
 
-    -- Load the sprite sheet (128x128 sprites)
+    -- Load collision layers
+    loadCollisionLayers()
+
+    -- Load sprites and animations
     spriteSheet = love.graphics.newImage("assets/van.png")
-    local spriteSize = 128
-    local sheetWidth, sheetHeight = spriteSheet:getWidth(), spriteSheet:getHeight()
-
-    -- Create quads for each sprite (128x128) in the sprite sheet
-    for y = 0, (sheetHeight / spriteSize) - 1 do
-        for x = 0, (sheetWidth / spriteSize) - 1 do
-            local quad = love.graphics.newQuad(
-                x * spriteSize, y * spriteSize, 
-                spriteSize, spriteSize, 
-                sheetWidth, sheetHeight
-            )
-            table.insert(quads, quad)
-        end
-    end
-
-    -- Load the ghost quad (11th column, 12th row)
-    local ghostX = (11 - 1) * spriteSize  -- Convert 11th column to zero-indexed
-    local ghostY = (12 - 1) * spriteSize  -- Convert 12th row to zero-indexed
-    ghostQuad = love.graphics.newQuad(ghostX, ghostY, spriteSize, spriteSize, sheetWidth, sheetHeight)
-
-    -- Load ladder climbing quads (2nd to 4th row, 6th to 8th row in 8th column)
-    ladderQuads = {}  -- Reset or initialize ladderQuads
-
-    -- Add quads from the 8th column and rows 2-4 and 6-8
-    local column = 7  -- 8th column, zero-indexed
-    local rowsToUse = {1, 2, 3, 5, 6, 7}  -- Rows 2-4 and 6-8, zero-indexed
-
-    for _, row in ipairs(rowsToUse) do
-        local quad = love.graphics.newQuad(
-            column * spriteSize, row * spriteSize, 
-            spriteSize, spriteSize, 
-            sheetWidth, sheetHeight
-        )
-        table.insert(ladderQuads, quad)
-    end
-
-    -- Load the wall image data and create the collision mask
-    imageData = love.image.newImageData("assets/mapPlatforms.png")
-    collisionMask = {}
-    for x = 0, imageData:getWidth() - 1 do
-        collisionMask[x] = {}
-        for y = 0, imageData:getHeight() - 1 do
-            local r, g, b, a = imageData:getPixel(x, y)
-            collisionMask[x][y] = a > 0 -- True if the pixel is not transparent
-        end
-    end
-
-    bloodsplatter.load()  -- Load the blood splatter effect
+    loadAnimations()
+    currentAnimation = animations.idle
+    bloodsplatter.load()
 end
 
--- Collision logic to detect collisio
--- Collision logic to detect collisions with walls
-function player.checkCollision(x, y)
-    if isGhostMode then return false end  -- No collision in ghost mode
+-- Load collision layers with different behaviors
+function loadCollisionLayers()
+    collisionLayers[GROUND] = loadCollisionData("assets/mapPlatforms.png")
+    collisionLayers[LADDER] = loadCollisionData("assets/mapLadders.png")
+    collisionLayers[SPIKE] = loadCollisionData("assets/mapTraps.png")
+    collisionLayers[SACRIFICE_ALTAR] = loadCollisionData("assets/LVLDoors.png")
+end
 
-    -- Shrink player's hitbox for collision
-    local shrinkWidth = 6
-    local shrinkHeight = 4
-
-    -- Player's bounding box
-    local playerLeft = x + shrinkWidth / 2
-    local playerRight = x + player.width - shrinkWidth / 2
-    local playerTop = y + shrinkHeight / 2
-    local playerBottom = y + player.height - shrinkHeight / 2
-
-    -- Wall bounding box
-    local wallLeft = wall.x
-    local wallRight = wall.x + wall.width
-    local wallTop = wall.y
-    local wallBottom = wall.y + wall.height
-
-    -- Check if the player is within the wall bounds (basic AABB collision check)
-    if playerRight > wallLeft and playerLeft < wallRight and
-       playerBottom > wallTop and playerTop < wallBottom then
-        -- Now check pixel-perfect collision using collisionMask
-        local localPlayerX = math.floor(playerLeft - wall.x)
-        local localPlayerY = math.floor(playerTop - wall.y)
-
-        -- Iterate over player's pixels
-        for px = 0, player.width - shrinkWidth - 1 do
-            for py = 0, player.height - shrinkHeight - 1 do
-                local maskX = localPlayerX + px
-                local maskY = localPlayerY + py
-
-                if maskX >= 0 and maskY >= 0 and maskX < wall.width and maskY < wall.height then
-                    if collisionMask[maskX] and collisionMask[maskX][maskY] then
-                        return true -- Collision detected with non-transparent pixel
-                    end
-                end
+-- Load collision data for a specific layer
+function loadCollisionData(imagePath)
+    local imageData = love.image.newImageData(imagePath)
+    local mask = {}
+    for x = 0, imageData:getWidth() - 1 do
+        mask[x] = {}
+        for y = 0, imageData:getHeight() - 1 do
+            local r, g, b, a = imageData:getPixel(x, y)
+            if a > 0 then
+                mask[x][y] = true
+            else
+                mask[x][y] = false
             end
         end
     end
-
-    return false -- No collision
+    return mask
 end
 
--- Check if the player is colliding with a ladder
-function player.checkLadderCollision(x, y)
-    local playerLeft = x
-    local playerRight = x + player.width
-    local playerTop = y
-    local playerBottom = y + player.height
+-- Load animations from the sprite sheet
+function loadAnimations()
+    local sheetWidth, sheetHeight = spriteSheet:getWidth(), spriteSheet:getHeight()
+    local frameWidth, frameHeight = 128, 128  -- Assuming each frame is 128x128 pixels
 
-    -- Check if the player is within the bounds of the ladder image
-    for px = 0, player.width - 1 do
-        for py = 0, player.height - 1 do
-            local maskX = math.floor(playerLeft + px)
-            local maskY = math.floor(playerTop + py)
+    animations = {
+        idle = {frames = {}, speed = 0.2},
+        run = {frames = {}, speed = 0.1},
+        jump = {frames = {}, speed = 0.15},
+        climb = {frames = {}, speed = 0.2},
+        ghost = {frames = {}, speed = 0.2},
+    }
 
-            if maskX >= 0 and maskY >= 0 and maskX < imageData:getWidth() and maskY < imageData:getHeight() then
-                local maskValue = collisionMask[maskX][maskY]
-                if maskValue == LADDER then
+    -- Idle (First frame)
+    table.insert(animations.idle.frames, love.graphics.newQuad(0, 0, frameWidth, frameHeight, sheetWidth, sheetHeight))
+
+    -- Run/Walk (Next 8 frames: 2nd to 9th)
+    for i = 1, 8 do
+        table.insert(animations.run.frames, love.graphics.newQuad(i * frameWidth, 0, frameWidth, frameHeight, sheetWidth, sheetHeight))
+    end
+
+    -- Climb (8th row, 2nd-4th and 6th-8th frames)
+    for i = 1, 3 do
+        table.insert(animations.climb.frames, love.graphics.newQuad((i + 1) * frameWidth, 7 * frameHeight, frameWidth, frameHeight, sheetWidth, sheetHeight))
+    end
+    for i = 5, 7 do
+        table.insert(animations.climb.frames, love.graphics.newQuad(i * frameWidth, 7 * frameHeight, frameWidth, frameHeight, sheetWidth, sheetHeight))
+    end
+
+    -- Jump (12th row, 6th frame)
+    table.insert(animations.jump.frames, love.graphics.newQuad(5 * frameWidth, 11 * frameHeight, frameWidth, frameHeight, sheetWidth, sheetHeight))
+
+    -- Ghost
+    for i = 11, 10 do
+        table.insert(animations.ghost.frames, love.graphics.newQuad(i * frameWidth, 3 * frameHeight, frameWidth, frameHeight, sheetWidth, sheetHeight))
+    end
+end
+
+function updateAnimation(dt)
+    if not currentAnimation or not currentAnimation.frames or #currentAnimation.frames == 0 then
+        currentAnimation = animations.idle
+    end
+
+    if currentAnimation and #currentAnimation.frames > 0 then
+        currentAnimation.timer = (currentAnimation.timer or 0) + dt
+        if currentAnimation.timer >= currentAnimation.speed then
+            currentAnimation.timer = 0
+            currentAnimation.currentFrame = (currentAnimation.currentFrame or 1) + 1
+            if currentAnimation.currentFrame > #currentAnimation.frames then
+                currentAnimation.currentFrame = 1
+            end
+        end
+    end
+end
+
+-- Collision check for all layers
+function player.checkCollision(x, y)
+    if isGhostMode then return false end
+
+    for collisionType, mask in pairs(collisionLayers) do
+        if basicCollision(x, y, player.width, player.height, wall, mask) then
+            return collisionType
+        end
+    end
+    return false
+end
+
+-- Basic collision detection with smaller hitbox
+function basicCollision(x, y, width, height, obj, mask)
+    local hitboxLeft = x + (player.width - player.hitboxWidth) / 2
+    local hitboxTop = y + (player.height - player.hitboxHeight) / 2
+    local hitboxRight = hitboxLeft + player.hitboxWidth
+    local hitboxBottom = hitboxTop + player.hitboxHeight
+
+    local wallLeft, wallRight = obj.x, obj.x + obj.width
+    local wallTop, wallBottom = obj.y, obj.y + obj.height
+
+    if hitboxRight > wallLeft and hitboxLeft < wallRight and hitboxBottom > wallTop and hitboxTop < wallBottom then
+        for px = 0, player.hitboxWidth - 1 do
+            for py = 0, player.hitboxHeight - 1 do
+                local maskX = math.floor(hitboxLeft - obj.x + px)
+                local maskY = math.floor(hitboxTop - obj.y + py)
+                if mask[maskX] and mask[maskX][maskY] then
                     return true
                 end
             end
         end
     end
-
     return false
 end
 
--- Function to handle all player movement input
+-- Player movement update
 function player.update(dt)
-    local dx, dy = 0, 0
-    state = "idle"  -- Assume the player is idle unless they are moving
-
-    -- Handle teleportation, skipping other movement during teleport
-    if isTeleporting then
-        player.x = lerp(player.x, targetPosition.x, teleportSpeed * dt)
-        player.y = lerp(player.y, targetPosition.y, teleportSpeed * dt)
-        player.x, player.y = constrainToBounds(player.x, player.y)
-
-        -- Stop teleporting once close enough to the target position
-        if math.abs(player.x - targetPosition.x) < 1 and math.abs(player.y - targetPosition.y) < 1 then
-            isTeleporting = false
-        end
-        return
-    end
-
-    -- Handle ghost mode movement
+    flickerOffset = flickerOffset + (math.random(-5, 5) * dt * 10)  -- Adjust values to control speed and range
+    flickerOffset = math.max(-5, math.min(flickerOffset, 5))  -- Limit the flicker offset between -10 and 10
     if isGhostMode then
-        -- Omnidirectional movement in ghost mode
-        if love.keyboard.isDown("a") then
-            dx = -ghostSpeed * dt
-            direction = -1
-        elseif love.keyboard.isDown("d") then
-            dx = ghostSpeed * dt
-            direction = 1
-        end
-        if love.keyboard.isDown("w") then
-            dy = -ghostSpeed * dt  -- Move up
-        elseif love.keyboard.isDown("s") then
-            dy = ghostSpeed * dt  -- Move down
-        end
-
-        -- Apply the ghost mode movement and skip other updates
-        player.x = player.x + dx
-        player.y = player.y + dy
-        player.x, player.y = constrainToBounds(player.x, player.y)
-        return
-    end
-
-    -- Handle horizontal movement
-    if love.keyboard.isDown("a") then
-        dx = -player.speed * dt
-        direction = -1
-        state = "moving"
-    elseif love.keyboard.isDown("d") then
-        dx = player.speed * dt
-        direction = 1
-        state = "moving"
-    end
-
-    -- Apply gravity if the player is not grounded
-    if not player.isGrounded then
-        if player.isTouchingWall then
-            player.velocityY = player.velocityY + wallSlideGravity * dt  -- Wall sliding gravity
-        else
-            player.velocityY = player.velocityY + gravity * dt  -- Normal gravity
-        end
-        dy = player.velocityY * dt
-    end
-
-    -- Horizontal movement first (independent from ground collision)
-    local canMoveHorizontally = not player.checkCollision(player.x + dx, player.y)
-    if canMoveHorizontally then
-        player.x = player.x + dx
-    end
-
-    -- Vertical collision check (for gravity and jumping)
-    local canMoveVertically = not player.checkCollision(player.x, player.y + dy)
-    if canMoveVertically then
-        player.y = player.y + dy
-        player.isGrounded = false  -- Player is in the air if no collision with ground
+        updateGhostMode(dt)
+    elseif player.onLadder then
+        updateLadderMode(dt)
     else
-        -- Stop vertical movement when hitting the ground
-        if dy > 0 then  -- If the player is falling
-            player.velocityY = 0  -- Stop falling
-            player.isGrounded = true  -- Player is on the ground
-            currentJumps = 0  -- Reset jump count when the player is grounded
-        end
+        updateNormalMode(dt)
     end
 
-    -- Update animation frames if the player is climbing
-    if player.isOnLadder then
-        frameTimer = frameTimer + dt
-        if frameTimer >= frameSpeed then
-            frameTimer = 0
-            currentFrame = currentFrame + 1
-            if currentFrame > #ladderQuads then
-                currentFrame = 1  -- Loop back to the first frame
-            end
-        end
-    end
+    updateAnimation(dt)
 end
 
--- Function to handle key presses (like jumping, ghost mode)
-function player.handleKeyPress(key)
-    if key == "space" and player.isGrounded and currentJumps < maxJumps then
-        player.velocityY = jumpVelocity  -- Apply jump force
-        currentJumps = currentJumps + 1  -- Track jumps
+-- Update movement in normal mode
+function updateNormalMode(dt)
+    local dx, dy = 0, 0
+    local moving = false
+    if player.velocityY == nil then player.velocityY = 0 end
+
+    -- Horizontal movement
+    if love.keyboard.isDown("a") then
+        dx = -playerSpeed * dt
+        direction = -1
+        moving = true
+    elseif love.keyboard.isDown("d") then
+        dx = playerSpeed * dt
+        direction = 1
+        moving = true
+    end
+
+    -- Apply gravity
+    player.velocityY = math.min(player.velocityY + gravity * dt, 2000)
+    dy = player.velocityY * dt
+
+    -- Check for collisions
+    local collisionType = player.checkCollision(player.x + dx, player.y)
+    if collisionType == GROUND then
+        dx = 0
+    elseif collisionType == LADDER then
+        player.onLadder = true
+        currentAnimation = animations.climb
+        return
+    elseif collisionType == SPIKE then
+        return
+    elseif collisionType == SACRIFICE_ALTAR then
+        isGhostMode = true
+        currentAnimation = animations.ghost
+        return
+    end
+
+    -- Vertical collision
+    collisionType = player.checkCollision(player.x, player.y + dy)
+    if collisionType == GROUND then
+        dy = 0
+        player.velocityY = 0
+        player.isGrounded = true
+        currentJumps = 0
+        print("Player grounded, jumps reset.")
+    else
         player.isGrounded = false
-    elseif key == "g" then
-        player.triggerGhostMode()  -- Activate ghost mode when 'g' is pressed
+    end
+
+    -- Update position
+    player.x = math.max(0, player.x + dx)
+    player.y = math.max(0, player.y + dy)
+
+    -- Update animation based on movement
+    if not player.isGrounded then
+        currentAnimation = animations.jump
+    elseif moving then
+        currentAnimation = animations.run
+    else
+        currentAnimation = animations.idle
     end
 end
 
--- Call this in your main `love.keypressed` callback:
-function love.keypressed(key)
-    player.handleKeyPress(key)  -- Handle key presses like jump or ghost mode
+-- Update movement on ladder
+-- Update movement on ladder with wall collision checks
+function updateLadderMode(dt)
+    local dx, dy = 0, 0
+    local moving = false
+
+    -- Horizontal movement on the ladder
+    if love.keyboard.isDown("a") then
+        dx = -ladderSpeed * dt
+        direction = -1
+        moving = true
+    elseif love.keyboard.isDown("d") then
+        dx = ladderSpeed * dt
+        direction = 1
+        moving = true
+    end
+
+    -- Vertical movement on the ladder
+    if love.keyboard.isDown("w") then
+        dy = -ladderSpeed * dt
+        moving = true
+    elseif love.keyboard.isDown("s") then
+        dy = ladderSpeed * dt
+        moving = true
+    end
+
+    -- Check for wall collision while on the ladder
+    local collisionTypeX = player.checkCollision(player.x + dx, player.y)
+    local collisionTypeY = player.checkCollision(player.x, player.y + dy)
+
+    -- Prevent horizontal movement through walls
+    if collisionTypeX == GROUND then
+        dx = 0  -- Stop horizontal movement if a wall is hit
+    end
+
+    -- Prevent vertical movement through walls
+    if collisionTypeY == GROUND then
+        dy = 0  -- Stop vertical movement if a wall is hit
+    end
+
+    -- Check if player leaves the ladder
+    if collisionTypeX ~= LADDER and collisionTypeY ~= LADDER then
+        player.onLadder = false
+        player.velocityY = 0  -- Reset vertical velocity
+        currentAnimation = animations.idle  -- Switch to idle animation
+        return
+    end
+
+    -- Update player position
+    player.x = player.x + dx
+    player.y = player.y + dy
+
+    -- Update animation
+    if moving then
+        currentAnimation = animations.climb  -- Switch to climbing animation
+    else
+        currentAnimation = animations.idle  -- Switch to idle animation
+    end
 end
 
 
--- Draw the player and handle the ladder/ghost mode display
+-- Update movement in ghost mode
+function updateGhostMode(dt)
+    local dx, dy = 0, 0
+    if love.keyboard.isDown("a") then
+        dx = -ghostSpeed * dt
+        direction = -1
+    elseif love.keyboard.isDown("d") then
+        dx = ghostSpeed * dt
+        direction = 1
+    end
+    if love.keyboard.isDown("w") then
+        dy = -ghostSpeed * dt
+    elseif love.keyboard.isDown("s") then
+        dy = ghostSpeed * dt
+    end
+
+    player.x = player.x + dx
+    player.y = player.y + dy
+
+    ghostTimer = ghostTimer + dt
+    if ghostTimer >= ghostDuration then
+        isGhostMode = false
+        ghostTimer = 0
+        player.velocityY = 0
+        currentAnimation = animations.idle
+    end
+end
+
+-- Draw player and lighting
 function player.draw()
-    -- Use the ghost quad if in ghost mode, otherwise use the regular quads
-    local currentQuad = isGhostMode and ghostQuad or quads[currentFrame]
-    
-    -- Scaling factors to scale down the sprite to player.width and player.height
-    local scaleFactorX = player.width / 128  -- Original sprite width is 128
-    local scaleFactorY = player.height / 128 -- Original sprite height is 128
+    currentAnimation = currentAnimation or animations.idle
+    local frame = currentAnimation.frames[currentAnimation.currentFrame or 1]
+    local scaleX = (direction == 1) and (player.width / 128) or -(player.width / 128)
+    local scaleY = player.height / 128
+    local offsetX = (direction == -1) and player.width or 0
 
-    -- Flip the sprite if heading left
-    local scaleX = direction * scaleFactorX  -- 1 when facing right, -1 when facing left
-    local scaleY = scaleFactorY
-
-    -- Set the origin to the center of the sprite
-    local originX = 64  -- Half of the original sprite width (128 / 2)
-    local originY = 64  -- Half of the original sprite height (128 / 2)
-
-    -- Calculate the draw position (center of the player)
-    local drawX = player.x + player.width / 2
-    local drawY = player.y + player.height / 2
-
-    drawLightingEffect()  -- Draw the lighting effect
-    -- Draw the player
-    love.graphics.draw(
-        spriteSheet, 
-        currentQuad, 
-        drawX, drawY, 
-        0, 
-        scaleX, scaleY,
-        originX, originY
-    )
-
-    -- Draw the blood splatter effect
+    love.graphics.draw(spriteSheet, frame, player.x + offsetX, player.y, 0, scaleX, scaleY, player.width / 2, player.height / 2)
     bloodsplatter.draw()
-
-    -- Draw blue overlay when in ghost mode
-    if isGhostMode then
-        love.graphics.setColor(0, 0, 1, 0.2)  -- Blue color with slight transparency
-
-        -- Draw the blue overlay relative to the player's position
-        love.graphics.rectangle("fill", 0, 0, 2000, 2000)
-        
-        love.graphics.setColor(1, 1, 1, 1)  -- Reset color after drawing
-    end
-
-
+    drawLightingEffect()
 end
 
+-- Draw lighting effect
 function drawLightingEffect()
     -- Check if ghost mode is enabled
-    if player.isInGhostMode() then
-        print("Ghost mode is active, skipping lighting effect")
+    if player.isGhostMode then
         return -- Early exit if in ghost mode (lighting is not drawn)
     else
-        print("Ghost mode is inactive, drawing lighting effect")
-
-        local zoom = cam.zoom or 1
-
-        -- Use player's current position directly (centered) and apply offset
+        
         local offsetX = 16  -- Adjust this for manual horizontal offset
         local offsetY = 12  -- Adjust this for manual vertical offset
         local playerCenterX = player.x + offsetX
         local playerCenterY = player.y + offsetY
 
-        -- Debugging information
-        print("Player center X:", playerCenterX, "Player center Y:", playerCenterY)
-
         -- Step 1: Define the stencil function to create the light mask
         love.graphics.stencil(function()
-            love.graphics.circle("fill", playerCenterX, playerCenterY, 50)  -- Adjust initial radius for smaller circle
+            love.graphics.circle("fill", playerCenterX, playerCenterY, 50)
         end, "replace", 1)
 
-        -- Step 2: Enable stencil test to punch a hole in the darkness (where the light will be visible)
+        -- Step 2: Enable stencil test to punch a hole in the darkness
         love.graphics.setStencilTest("equal", 0)
 
-        -- Step 3: Draw the dark rectangle (covering the whole screen)
+        -- Step 3: Draw the dark rectangle
         love.graphics.setColor(0, 0, 0, 0.99)
-        love.graphics.rectangle("fill", playerCenterX, playerCenterY, 2000, 2000)
+        love.graphics.rectangle("fill", 0, 0, 2000, 2000)
 
-        -- Step 4: Disable the stencil test so that the light can be drawn freely
+        -- Step 4: Disable the stencil test
         love.graphics.setStencilTest()
 
-        -- Step 5: Now draw the actual light circles
-        local baseRadius = 10 + flickerOffset  -- Reduce base radius to make the light smaller
-        local layers = 10  -- Fewer layers for a smaller effect
+        -- Step 5: Draw the light circles
+        local baseRadius = 10 + flickerOffset
+        local layers = 10
         local yellowHue = {1, 1, 0.8}
 
         -- Draw each layer with decreasing alpha and increasing size
         for i = layers, 1, -1 do
-            print("Drawing light at X:", playerCenterX, "Y:", playerCenterY)
-
-            local radius = baseRadius + (i * 5)  -- Reduce the layer increment for smaller rings
-            local alpha = 0.10 * (i / layers)  -- Higher base alpha for more visible light
+            local radius = baseRadius + (i * 5)
+            local alpha = 0.10 * (i / layers)
             love.graphics.setColor(yellowHue[1] * (i / layers), yellowHue[2] * (i / layers), yellowHue[3], alpha)
             love.graphics.circle("fill", playerCenterX, playerCenterY, radius)
         end
@@ -418,8 +393,27 @@ function drawLightingEffect()
         love.graphics.setColor(1, 1, 1, 1)
     end
 end
-function player.isInGhostMode()
-    return isGhostMode
+
+function player.keypressed(key)
+    if key == "space" then
+        player.handleJump()  -- Trigger jump when space is pressed
+    end
+end
+
+
+function player.handleJump()
+    if not player.isGhostMode then
+        print("Jump Attempt: isGrounded =", player.isGrounded, " currentJumps =", currentJumps, " onLadder =", player.onLadder)
+        if player.isGrounded or player.onLadder or currentJumps < maxJumps then
+            player.velocityY = jumpVelocity
+            currentJumps = currentJumps + 1
+            player.isGrounded = false
+            player.onLadder = false
+            print("Jump Successful! VelocityY =", player.velocityY, " currentJumps =", currentJumps)
+        else
+            print("Jump Failed! Player cannot jump.")
+        end
+    end
 end
 
 return player

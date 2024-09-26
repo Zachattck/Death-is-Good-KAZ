@@ -1,6 +1,7 @@
 local game = require("game")  -- Assuming game.lua is in the same directory as main.lua
 local pauseMenu = require("pauseMenu")
 local CutsceneManager = require("CutsceneManager")
+local player = require("player")
 -- Game states
 local currentState = "menu"  -- Initially in the menu state
 local selectedOption = 1  -- Track selected menu option
@@ -73,44 +74,46 @@ function love.load()
     game.load()
 end
 function love.update(dt)
-    -- Handle fading in and out effects
+    -- Handle fade transitions (in/out)
     if isFadingIn then
-        fadeAlpha = fadeAlpha - fadeSpeed * dt
-        if fadeAlpha <= 0 then
-            fadeAlpha = 0
-            isFadingIn = false
-        end
+        fadeAlpha = math.max(fadeAlpha - fadeSpeed * dt, 0)
+        isFadingIn = fadeAlpha > 0
     elseif isFadingOut then
-        fadeAlpha = fadeAlpha + fadeSpeed * dt
+        fadeAlpha = math.min(fadeAlpha + fadeSpeed * dt, 1)
         if fadeAlpha >= 1 then
-            fadeAlpha = 1
-            isFadingOut = false
-
-            -- Transition to the next state after fade-out
-            if nextState == "exit" then
-                love.event.quit()  -- Quit the game
-            elseif nextState == "cutscene" then
-                -- Start the cutscene via game.startCutscene
-                game.startCutscene(currentMusic, volume)  -- Properly calling the function
-                currentState = "cutscene"
-                isFadingIn = true  -- Begin fading in again for the cutscene
-            else
-                currentState = nextState  -- Switch to the next state directly
-                isFadingIn = true  -- Start fading in
-            end
+            handleStateTransition()
         end
     end
 
-    -- Game state logic
+    if game.currentState == "playing" then
+        currentState = "playing"
+    end
+    -- Game state logic if not fading out
     if not isFadingOut then
         if currentState == "menu" then
             updateMenu()
-        elseif currentState == "cutscene" and game.cutscene then
-            game.cutscene:update(dt)  -- Delegate cutscene logic to CutsceneManager
+        elseif currentState == "cutscene" then
+            game.cutscene:update(dt)
         elseif currentState == "playing" then
-            game.update(dt)  -- Update game logic here when in 'playing' state
+        
+            game.update(dt)
+            player.update(dt)
         end
     end
+end
+
+-- Handle transitioning between states after fade out
+function handleStateTransition()
+    isFadingOut = false
+    if nextState == "exit" then
+        love.event.quit()
+    elseif nextState == "cutscene" then
+        game.startCutscene(currentMusic, volume)
+        currentState = "cutscene"
+    else
+        currentState = nextState
+    end
+    isFadingIn = true  -- Start fading in again after transition
 end
 
 
