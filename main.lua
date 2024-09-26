@@ -308,7 +308,7 @@ function drawOptionsMenu()
     love.graphics.draw(optionsBackgroundImage, backgroundX, backgroundY)
 
     -- Set scale for images
-    local optionsMenuImageScale = 0.75  -- Make the options image smaller and set it at the top
+    local optionsMenuImageScale = 1  -- Make the options image smaller and set it at the top
 
     -- Draw "Options Menu" image (scaled down and centered at the top)
     local optionsMenuImageWidth = optionsImage:getWidth() * optionsMenuImageScale
