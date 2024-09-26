@@ -22,7 +22,6 @@ function game.load()
     game.backgroundLayers = {
         {image = love.graphics.newImage("assets/mapBackgrounds.png"), x = 0, y = 0},
         {image = love.graphics.newImage("assets/mapPlatforms.png"), x = 0, y = 0},
-        {image = love.graphics.newImage("assets/LVLWalls.png"), x = 0, y = 0},
         {image = love.graphics.newImage("assets/mapLadders.png"), x = 0, y = 0},
         {image = love.graphics.newImage("assets/mapRelics.png"), x = 0, y = 0},
         {image = love.graphics.newImage("assets/LVLDoors.png"), x = 0, y = 0},

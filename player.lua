@@ -62,7 +62,6 @@ end
 -- Load collision layers with different behaviors
 function loadCollisionLayers()
     collisionLayers[GROUND] = loadCollisionData("assets/mapPlatforms.png")
-    collisionLayers[WALL] = loadCollisionData("assets/LVLDoors.png")
     collisionLayers[LADDER] = loadCollisionData("assets/mapLadders.png")
     collisionLayers[SPIKE] = loadCollisionData("assets/mapTraps.png")
     collisionLayers[SACRIFICE_ALTAR] = loadCollisionData("assets/LVLDoors.png")
@@ -219,7 +218,7 @@ function updateNormalMode(dt)
     local collisionTypeX = player.checkCollision(player.x + dx, player.y)
     
     -- Handle different collision types
-    if collisionTypeX == GROUND or collisionTypeX == WALL then
+    if collisionTypeX == GROUND then
         dx = 0  -- Block movement horizontally if ground is hit
     elseif collisionTypeX == LADDER then
         player.onLadder = true
