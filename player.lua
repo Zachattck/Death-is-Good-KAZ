@@ -4,7 +4,7 @@ local wall = {}
 local collisionLayers = {}  -- Holds different collision layers
 local cam = require("camera")  -- Initialize the camera
 -- Collision types
-local LADDER, SPIKE, SACRIFICE_ALTAR, GROUND, WIN_BED, WALL = 1, 2, 3, 4, 5, 6
+local LADDER, SPIKE, SACRIFICE_ALTAR, GROUND, WIN_BED, = 1, 2, 3, 4, 5
 
 -- Player properties
 local spriteSheet
@@ -13,10 +13,16 @@ local animations = {}
 local currentAnimation
 local direction = 1  -- 1 for right, -1 for left
 
+-- Checkpoint properties
+local checkpointStatus = 0  -- Tracks the checkpoint level (max of 3)
+local checkpointCooldown = 0  -- Cooldown for adding checkpoints
+local checkpointDuration = 30  -- 30 seconds cooldown duration for checkpoints
+local checkpointPositions = {}  -- Stores positions of checkpoints
+
 -- Movement properties
 local isGhostMode, ghostTimer, ghostDuration = false, 0, 5
 local gravity, jumpVelocity, wallSlideGravity = 800, -375, 200
-local ghostSpeed = 150
+local ghostSpeed = 40
 local playerSpeed = 100
 local ladderSpeed = 75
 local flickerOffset = 0
@@ -57,6 +63,13 @@ function player.load()
     loadAnimations()
     currentAnimation = animations.idle
     bloodsplatter.load()
+
+        -- Initialize checkpoint positions
+        checkpointPositions = {
+            {x = 400, y = 600},  -- Default respawn position for checkpoint 1
+            {x = 500, y = 600},  -- Respawn position for checkpoint 2
+            {x = 600, y = 600}   -- Respawn position for checkpoint 3
+        }
 end
 
 -- Load collision layers with different behaviors
@@ -119,10 +132,29 @@ function loadAnimations()
     table.insert(animations.jump.frames, love.graphics.newQuad(5 * frameWidth, 11 * frameHeight, frameWidth, frameHeight, sheetWidth, sheetHeight))
 
     -- Ghost
-    for i = 11, 10 do
-        table.insert(animations.ghost.frames, love.graphics.newQuad(i * frameWidth, 3 * frameHeight, frameWidth, frameHeight, sheetWidth, sheetHeight))
+    for col = 0, 15 do  -- Loop through 16 columns (from 0 to 15)
+        table.insert(animations.ghost.frames, love.graphics.newQuad(col * frameWidth, 10 * frameHeight, frameWidth, frameHeight, sheetWidth, sheetHeight))
+    end
+end    
+
+-- Checkpoint logic when touching a sacrifice altar
+function handleCheckpoint()
+    if checkpointStatus < 3 and checkpointCooldown <= 0 then
+        checkpointStatus = checkpointStatus + 1  -- Increment the checkpoint status
+        checkpointCooldown = checkpointDuration  -- Reset the cooldown
+        print("Checkpoint set at: ", player.x, player.y)
+        checkpointPositions[checkpointStatus] = {x = player.x, y = player.y}  -- Store the player's current position
     end
 end
+
+
+-- Update cooldown timer for checkpoints
+function updateCheckpointCooldown(dt)
+    if checkpointCooldown > 0 then
+        checkpointCooldown = checkpointCooldown - dt
+    end
+end
+
 
 function updateAnimation(dt)
     if not currentAnimation or not currentAnimation.frames or #currentAnimation.frames == 0 then
@@ -179,6 +211,7 @@ end
 
 -- Player movement update
 function player.update(dt)
+    updateCheckpointCooldown(dt)  -- Update the checkpoint cooldown
     flickerOffset = flickerOffset + (math.random(-5, 5) * dt * 10)  -- Adjust values to control speed and range
     flickerOffset = math.max(-5, math.min(flickerOffset, 5))  -- Limit the flicker offset between -10 and 10
     print("x", player.x, "Y", player.y)
@@ -232,6 +265,7 @@ function updateNormalMode(dt)
     elseif collisionTypeX == SACRIFICE_ALTAR then
         -- Trigger ghost mode but don't block movement
         player.isGhostModePossible = true
+        handleCheckpoint()  -- Handle checkpoint
     elseif collisionTypeX == WIN_BED then
         -- Trigger win event but don't block movement
         player.win()
@@ -248,6 +282,7 @@ function updateNormalMode(dt)
     elseif collisionTypeY == SACRIFICE_ALTAR then
         -- Trigger ghost mode but don't block movement
         player.isGhostModePossible = true
+        handleCheckpoint()  -- Handle checkpoint
     elseif collisionTypeY == WIN_BED then
         -- Trigger win event but don't block movement
         player.win()
@@ -268,17 +303,22 @@ function updateNormalMode(dt)
         currentAnimation = animations.idle
     end
 end
-
  -- Respawn player at most recent checkpoint
-function player.respawn()
-    player.x = math.max(0, player.x - 50)  -- Replace coordinates 
-    player.y = player.y - 50  -- Replace coordinates 
-    player.velocityY = 0  -- Reset vertical velocity
-    player.isGrounded = false  -- Reset grounded status
-    currentJumps = 0  -- Reset jump count
-    print("You have been respawned at the most recent checkpoint, Watch your step!:")
-end 
-
+ function player.respawn()
+    if checkpointStatus > 0 then
+        local checkpoint = checkpointPositions[checkpointStatus]
+        player.x = checkpoint.x
+        player.y = checkpoint.y
+        player.velocityY = 0  -- Reset vertical velocity
+        player.isGrounded = false  -- Reset grounded status
+        currentJumps = 0  -- Reset jump count
+        print("Respawned at checkpoint " .. checkpointStatus .. ": ", player.x, player.y)
+    else
+        print("No checkpoint found, respawning at default.")
+        player.x = 400
+        player.y = 600
+    end
+end
 
 function updateLadderMode(dt)
     local dx, dy = 0, 0
@@ -345,7 +385,8 @@ function updateGhostMode(dt)
 
     -- Change the animation to ghost mode
     currentAnimation = animations.ghost
-
+    -- Update the ghost animation
+    updateAnimation(dt)
     -- Movement is slower in ghost mode
     if love.keyboard.isDown("a") then
         dx = -ghostSpeed * dt  -- Use ghostSpeed for slower movement
@@ -364,8 +405,7 @@ function updateGhostMode(dt)
     player.x = player.x + dx
     player.y = player.y + dy
 
-    -- Update the ghost animation
-    updateAnimation(dt)
+
 
     -- Timer for ghost mode duration
     ghostTimer = ghostTimer + dt
@@ -413,7 +453,7 @@ function drawLightingEffect()
 
         -- Step 3: Draw the dark rectangle
         love.graphics.setColor(0, 0, 0, 0.99)
-        love.graphics.rectangle("fill", 0, 0, 2000, 2000)
+        love.graphics.rectangle("fill", 0, 0, 10000, 10000)
 
         -- Step 4: Disable the stencil test
         love.graphics.setStencilTest()

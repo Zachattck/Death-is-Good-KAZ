@@ -100,6 +100,9 @@ function love.update(dt)
             player.update(dt)
         end
     end
+    if pauseMenu.isPaused() then
+        return  -- Skip the rest of the update logic
+    end
 end
 
 -- Handle transitioning between states after fade out
@@ -131,6 +134,10 @@ function love.draw()
         drawOptionsMenu()
     elseif currentState == "cutscene" or currentState == "playing" then
         game.draw()
+    end
+
+    if pauseMenu.isPaused() then
+        pauseMenu.draw()
     end
 
     -- Draw the fade effect on top of everything if fading
