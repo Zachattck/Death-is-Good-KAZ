@@ -4,7 +4,7 @@ local wall = {}
 local collisionLayers = {}  -- Holds different collision layers
 local cam = require("camera")  -- Initialize the camera
 -- Collision types
-local LADDER, SPIKE, SACRIFICE_ALTAR, GROUND, WIN_BED, = 1, 2, 3, 4, 5
+local LADDER, SPIKE, SACRIFICE_ALTAR, GROUND, WIN_BED = 1, 2, 3, 4, 5
 
 -- Player properties
 local spriteSheet
