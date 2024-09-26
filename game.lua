@@ -62,6 +62,9 @@ end
 -- Update the game state
 -- Update the game state
 function game.update(dt)
+    if pauseMenu.isPaused() then
+        return  -- Skip all game updates
+    end
     if game.currentState == "cutscene" and game.cutscene then
         game.cutscene:update(dt)  -- Update cutscene
     end
@@ -123,15 +126,18 @@ end
 -- Handle key presses
 function love.keypressed(key)
     if key == "escape" then
-        pauseMenu.pauseGame()  -- Pause the game when Escape is pressed
+        pauseMenu.toggle()  -- Toggle the pause state when Escape is pressed
     end
 
-    if game.currentState == "menu" and key == "return" then
-        game.startCutscene()  -- Start the cutscene when Enter is pressed in the menu
-    elseif game.currentState == "cutscene" and game.cutscene then
-        game.cutscene:keypressed(key)  -- Pass key presses to CutsceneManager
-    elseif game.currentState == "playing" then
-        player.keypressed(key)  -- Pass key presses   
+    -- Block other key actions while paused
+    if not pauseMenu.isPaused() then
+        if game.currentState == "menu" and key == "return" then
+            game.startCutscene()
+        elseif game.currentState == "cutscene" and game.cutscene then
+            game.cutscene:keypressed(key)
+        elseif game.currentState == "playing" then
+            player.keypressed(key)
+        end
     end
 end
 
