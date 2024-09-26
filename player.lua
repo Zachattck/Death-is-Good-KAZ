@@ -4,7 +4,7 @@ local wall = {}
 local collisionLayers = {}  -- Holds different collision layers
 local cam = require("camera")  -- Initialize the camera
 -- Collision types
-local LADDER, SPIKE, SACRIFICE_ALTAR, GROUND, WIN_BED = 1, 2, 3, 4, 5
+local LADDER, SPIKE, SACRIFICE_ALTAR, GROUND, WIN_BED, WALL = 1, 2, 3, 4, 5, 6
 
 -- Player properties
 local spriteSheet
@@ -27,7 +27,7 @@ local winTimer = 5 -- Time in seconds before closing the game after winning
 local gameWon = false  -- A flag to check if the game is won
 local fadeAlpha = 0  -- Alpha value for fade-in effect (0: fully transparent, 1: fully opaque)
 local fadeSpeed = 0.5  -- Speed of the fade-in effect
-
+local isGhostModePossible = false  -- Flag to check if ghost mode is possible
 -- Initialize player values
 function player.load()
     player.x = player.x or 400
@@ -214,35 +214,43 @@ function updateNormalMode(dt)
     player.velocityY = math.min(player.velocityY + gravity * dt, 2000)
     dy = player.velocityY * dt
 
-    -- Check for collisions
-    local collisionType = player.checkCollision(player.x + dx, player.y)
-    if collisionType == GROUND then
-        dx = 0
-    elseif collisionType == LADDER then
+    -- Check for collisions (horizontal)
+    local collisionTypeX = player.checkCollision(player.x + dx, player.y)
+    
+    -- Handle different collision types
+    if collisionTypeX == GROUND then
+        dx = 0  -- Block movement horizontally if ground is hit
+    elseif collisionTypeX == LADDER then
         player.onLadder = true
         currentAnimation = animations.climb
         return
-    elseif collisionType == SPIKE then
+    elseif collisionTypeX == SPIKE then
         print("Player has died! Returning to last known checkpoint.")
         bloodsplatter.trigger(player.x, player.y)  -- Trigger blood splatter effect
         player.respawn()
         return
-    elseif collisionType == SACRIFICE_ALTAR then
-        isGhostMode = true
-        currentAnimation = animations.ghost
-        return
-    elseif collisionType == WIN_BED then
+    elseif collisionTypeX == SACRIFICE_ALTAR then
+        -- Trigger ghost mode but don't block movement
+        player.isGhostModePossible = true
+    elseif collisionTypeX == WIN_BED then
+        -- Trigger win event but don't block movement
         player.win()
     end
 
-
-    -- Vertical collision
-    collisionType = player.checkCollision(player.x, player.y + dy)
-    if collisionType == GROUND then
-        dy = 0
+    -- Check for collisions (vertical)
+    local collisionTypeY = player.checkCollision(player.x, player.y + dy)
+    
+    if collisionTypeY == GROUND then
+        dy = 0  -- Block movement vertically if ground is hit
         player.velocityY = 0
         player.isGrounded = true
         currentJumps = 0
+    elseif collisionTypeY == SACRIFICE_ALTAR then
+        -- Trigger ghost mode but don't block movement
+        player.isGhostModePossible = true
+    elseif collisionTypeY == WIN_BED then
+        -- Trigger win event but don't block movement
+        player.win()
     else
         player.isGrounded = false
     end
@@ -334,8 +342,13 @@ end
 -- Update movement in ghost mode
 function updateGhostMode(dt)
     local dx, dy = 0, 0
+
+    -- Change the animation to ghost mode
+    currentAnimation = animations.ghost
+
+    -- Movement is slower in ghost mode
     if love.keyboard.isDown("a") then
-        dx = -ghostSpeed * dt
+        dx = -ghostSpeed * dt  -- Use ghostSpeed for slower movement
         direction = -1
     elseif love.keyboard.isDown("d") then
         dx = ghostSpeed * dt
@@ -347,17 +360,23 @@ function updateGhostMode(dt)
         dy = ghostSpeed * dt
     end
 
+    -- Update position (without any collisions)
     player.x = player.x + dx
     player.y = player.y + dy
 
+    -- Update the ghost animation
+    updateAnimation(dt)
+
+    -- Timer for ghost mode duration
     ghostTimer = ghostTimer + dt
     if ghostTimer >= ghostDuration then
         isGhostMode = false
-        ghostTimer = 0
         player.velocityY = 0
-        currentAnimation = animations.idle
+        currentAnimation = animations.idle  -- Revert to normal animation after ghost mode ends
+        print("Exited Ghost Mode")
     end
 end
+
 
 -- Draw player and lighting
 function player.draw()
@@ -421,7 +440,14 @@ function player.keypressed(key)
     if key == "space" then
         player.handleJump()  -- Trigger jump when space is pressed
     end
+    if key == "e" and player.isGhostModePossible then
+        isGhostMode = true
+        ghostTimer = 0  -- Reset ghost timer
+        player.isGhostModePossible = false  -- Reset the possibility to enter ghost mode until triggered again
+        print("Entered Ghost Mode")
+    end
 end
+
 
 
 function player.handleJump()
