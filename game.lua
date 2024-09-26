@@ -114,7 +114,7 @@ function game.draw()
     -- Apply fade-in effect when transitioning from cutscene to gameplay
     if game.fadeInAlpha > 0 then
         love.graphics.setColor(0, 0, 0, game.fadeInAlpha)
-        love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
+        love.graphics.rectangle("fill", 0, 0, 2000, 2000)
         love.graphics.setColor(1, 1, 1, 1)  -- Reset color after drawing
     end
 end
