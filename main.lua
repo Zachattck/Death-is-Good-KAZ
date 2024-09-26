@@ -100,9 +100,6 @@ function love.update(dt)
             player.update(dt)
         end
     end
-    if pauseMenu.isPaused() then
-        return  -- Skip the rest of the update logic
-    end
 end
 
 -- Handle transitioning between states after fade out
@@ -134,10 +131,6 @@ function love.draw()
         drawOptionsMenu()
     elseif currentState == "cutscene" or currentState == "playing" then
         game.draw()
-    end
-
-    if pauseMenu.isPaused() then
-        pauseMenu.draw()
     end
 
     -- Draw the fade effect on top of everything if fading
@@ -315,7 +308,7 @@ function drawOptionsMenu()
     love.graphics.draw(optionsBackgroundImage, backgroundX, backgroundY)
 
     -- Set scale for images
-    local optionsMenuImageScale = 1  -- Make the options image smaller and set it at the top
+    local optionsMenuImageScale = 0.75  -- Make the options image smaller and set it at the top
 
     -- Draw "Options Menu" image (scaled down and centered at the top)
     local optionsMenuImageWidth = optionsImage:getWidth() * optionsMenuImageScale

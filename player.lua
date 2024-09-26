@@ -5,6 +5,8 @@ local collisionLayers = {}  -- Holds different collision layers
 local cam = require("camera")  -- Initialize the camera
 -- Collision types
 local LADDER, SPIKE, SACRIFICE_ALTAR, GROUND, WIN_BED = 1, 2, 3, 4, 5
+--debug
+local isDebugMode = false -- Debug mode flag to allow ghost mode anytime
 
 -- Player properties
 local spriteSheet
@@ -21,28 +23,37 @@ local checkpointPositions = {}  -- Stores positions of checkpoints
 
 -- Movement properties
 local isGhostMode, ghostTimer, ghostDuration = false, 0, 5
-local gravity, jumpVelocity, wallSlideGravity = 800, -375, 200
-local ghostSpeed = 40
-local playerSpeed = 100
-local ladderSpeed = 75
+local gravity, jumpVelocity = 800, -375
+local ghostSpeed = 30
+local playerSpeed = 75
+local ladderSpeed = 40
 local flickerOffset = 0
 local maxJumps, currentJumps = 1, 0
-
+-- wait coroutine
+local myWaitCoroutine
+local waitTime = 0
+-- text properties
 local akikaFont = love.graphics.newFont("assets/Akika.ttf", 12)
---Text properties
 local displayText = nil
 --win stuff/gameplay stuff
+local startX = 400
+local startY = 600 
 
-local victorySound  -- Declare variable for the victory sound
-local winTimer = 5 -- Time in seconds before closing the game after winning
-local gameWon = false  -- A flag to check if the game is won
+ -- Time in seconds before closing the game after winning
 local fadeAlpha = 0  -- Alpha value for fade-in effect (0: fully transparent, 1: fully opaque)
 local fadeSpeed = 0.5  -- Speed of the fade-in effect
 local isGhostModePossible = false  -- Flag to check if ghost mode is possible
 -- Initialize player values
-function player.load()
+local game
+
+function player.load(g)
+    game = g  -- Assign the passed game module to a local variable
+    print("Game loaded into player:", game)  -- Check if game is passed properly
+
+    player.state = "alive"  -- Player starts in the "alive" state
+    player.isDead = false
     player.x = player.x or 400
-    player.y = player.y or 600  -- Adjust this value to ensure it's above the ground
+    player.y = player.y or  600 -- Adjust this value to ensure it's above the ground
     player.width = 30
     player.height = 30
     player.velocityY = player.velocityY or 0
@@ -52,7 +63,7 @@ function player.load()
     player.hitboxWidth = player.width * 0.6  -- Shrinks hitbox width by 40%
     player.hitboxHeight = player.height * 0.6  -- Shrinks hitbox height by 20%
 
-    victorySound = love.audio.newSource("assets/winSound.mp3", "static")  -- Replace with your sound file path
+      -- Replace with your sound file path
     -- Load the wall image
     wall.image = love.graphics.newImage("assets/mapPlatforms.png")
     wall.x = 0
@@ -117,10 +128,13 @@ function loadAnimations()
         jump = {frames = {}, speed = 0.15},
         climb = {frames = {}, speed = 0.2},
         ghost = {frames = {}, speed = 0.2},
+        dead = {frames = {}, speed = 0.2}
     }
 
     -- Idle (First frame)
     table.insert(animations.idle.frames, love.graphics.newQuad(0, 0, frameWidth, frameHeight, sheetWidth, sheetHeight))
+    -- Dead (First frame)
+    table.insert(animations.dead.frames, love.graphics.newQuad((4 - 1) * frameWidth, (3 - 1) * frameHeight, frameWidth, frameHeight, sheetWidth, sheetHeight))
 
     -- Run/Walk (Next 8 frames: 2nd to 9th)
     for i = 1, 8 do
@@ -164,21 +178,30 @@ end
 
 
 function updateAnimation(dt)
-    if not currentAnimation or not currentAnimation.frames or #currentAnimation.frames == 0 then
-        currentAnimation = animations.idle
+    -- If the player is dead, only play the dead animation
+    if player.state == "dead" then
+        currentAnimation = animations.dead
     end
 
+    -- Ensure there is a valid animation and frames
+    if not currentAnimation or not currentAnimation.frames or #currentAnimation.frames == 0 then
+        currentAnimation = animations.idle  -- Fallback to idle if no valid animation
+    end
+
+    -- Play the current animation
     if currentAnimation and #currentAnimation.frames > 0 then
         currentAnimation.timer = (currentAnimation.timer or 0) + dt
         if currentAnimation.timer >= currentAnimation.speed then
             currentAnimation.timer = 0
             currentAnimation.currentFrame = (currentAnimation.currentFrame or 1) + 1
             if currentAnimation.currentFrame > #currentAnimation.frames then
-                currentAnimation.currentFrame = 1
+                currentAnimation.currentFrame = 1  -- Loop the animation
             end
         end
     end
 end
+
+
 
 -- Collision check for all layers
 function player.checkCollision(x, y)
@@ -204,7 +227,7 @@ function basicCollision(x, y, width, height, obj, mask, collisionType)
 
     if hitboxRight > wallLeft and hitboxLeft < wallRight and hitboxBottom > wallTop and hitboxTop < wallBottom then
         -- For spikes, shrink the collision area
-        local shrinkFactor = 0.5  -- Adjust this factor to change the spike hitbox size
+        local shrinkFactor = 0.2  -- Adjust this factor to change the spike hitbox size
         local shrinkLeft, shrinkRight, shrinkTop, shrinkBottom
 
         -- Check if we're dealing with the spike collision layer
@@ -233,14 +256,45 @@ function basicCollision(x, y, width, height, obj, mask, collisionType)
     end
     return false
 end
+function wait(seconds, callback)
+    return coroutine.create(function()
+        local waitTime = seconds
+        -- Wait for the specified time to pass
+        while waitTime > 0 do
+            local dt = coroutine.yield()  -- Yield and expect dt to be passed in
+            waitTime = waitTime - dt
+            print("Waiting for: ", waitTime)  -- Debugging to check wait time
+        end
+        -- Call the callback after waiting is complete
+        if callback then
+            callback()
+        end
+    end)
+end
 
 
 -- Player movement update
 function player.update(dt)
-    updateCheckpointCooldown(dt)  -- Update the checkpoint cooldown
-    flickerOffset = flickerOffset + (math.random(-5, 5) * dt * 10)  -- Adjust values to control speed and range
-    flickerOffset = math.max(-5, math.min(flickerOffset, 5))  -- Limit the flicker offset between -10 and 10
-    print("x", player.x, "Y", player.y)
+    bloodsplatter.update(dt)
+
+    -- If the player is dead, only play the dead animation and do not allow movement
+    if player.state == "dead" then
+        updateAnimation(dt)  -- Keep playing dead animation
+        -- Handle the wait coroutine for respawn
+        if myWaitCoroutine and coroutine.status(myWaitCoroutine) ~= "dead" then
+            local success, message = coroutine.resume(myWaitCoroutine, dt)
+            if not success then
+                print("Error in coroutine: ", message)
+            end
+        end
+        return  -- Exit the update function to prevent any movement or actions
+    end
+
+    -- Normal update logic here...
+    updateCheckpointCooldown(dt)
+    flickerOffset = flickerOffset + (math.random(-5, 5) * dt * 10)
+    flickerOffset = math.max(-5, math.min(flickerOffset, 5))
+
     if isGhostMode then
         updateGhostMode(dt)
     elseif player.onLadder then
@@ -248,9 +302,13 @@ function player.update(dt)
     else
         updateNormalMode(dt)
     end
+
     updateAnimation(dt)
-    player.updateWin(dt)
 end
+
+
+
+
 
 -- Update movement in normal mode
 function updateNormalMode(dt)
@@ -285,21 +343,30 @@ function updateNormalMode(dt)
         player.onLadder = true
         currentAnimation = animations.climb
         return
-    elseif collisionTypeX == SPIKE then
+    elseif collisionTypeX == SPIKE and player.state ~= "dead" then
         print("Player has died! Returning to last known checkpoint.")
+        player.state = "dead"  -- Set the state to "dead" to prevent retriggering
         bloodsplatter.trigger(player.x, player.y)  -- Trigger blood splatter effect
-        player.respawn()
+        displayText = "WOMP WOMP"  -- Display text above the player's head
+        currentAnimation = animations.dead  -- Switch to the dead animation
+        
+        -- Start the wait coroutine to respawn after 3 seconds
+        if not myWaitCoroutine then  -- Only start the coroutine if it doesn't already exist
+            myWaitCoroutine = wait(3, player.respawn)
+        end
         return
+    
 -- Inside the collision detection for SACRIFICE_ALTAR:
 elseif collisionTypeX == SACRIFICE_ALTAR then
     -- Show text above the player's head when near the sacrifice altar
     displayText = "[E] Sacrifice"
     player.isGhostModePossible = true
     handleCheckpoint()  -- Handle checkpoint
-    elseif collisionTypeX == WIN_BED then
-        -- Trigger win event but don't block movement
-        player.win()
-    end
+-- In `player.lua`, inside the collision detection for WIN_BED
+elseif collisionTypeX == WIN_BED then
+    -- Trigger win event but don't block movement
+    game.win()  -- Trigger the win event in the game module
+end
 
     -- Check for collisions (vertical)
     local collisionTypeY = player.checkCollision(player.x, player.y + dy)
@@ -313,10 +380,6 @@ elseif collisionTypeX == SACRIFICE_ALTAR then
         -- Trigger ghost mode but don't block movement
         player.isGhostModePossible = true
         handleCheckpoint()  -- Handle checkpoint
-    elseif collisionTypeY == WIN_BED then
-        -- Trigger win event but don't block movement
-        player.win()
-    else
         player.isGrounded = false
     end
 
@@ -333,22 +396,33 @@ elseif collisionTypeX == SACRIFICE_ALTAR then
         currentAnimation = animations.idle
     end
 end
- -- Respawn player at most recent checkpoint
- function player.respawn()
+
+function player.respawn()
+    print("Respawn triggered!")
     if checkpointStatus > 0 then
         local checkpoint = checkpointPositions[checkpointStatus]
         player.x = checkpoint.x
         player.y = checkpoint.y
-        player.velocityY = 0  -- Reset vertical velocity
-        player.isGrounded = false  -- Reset grounded status
-        currentJumps = 0  -- Reset jump count
         print("Respawned at checkpoint " .. checkpointStatus .. ": ", player.x, player.y)
     else
-        print("No checkpoint found, respawning at default.")
-        player.x = 400
-        player.y = 600
+        player.x = startX
+        player.y = startY
+        print("No checkpoint found, respawning at default start position: ", player.x, player.y)
     end
+
+    -- Reset necessary properties
+    player.velocityY = 0  -- Reset vertical velocity
+    player.isGrounded = false  -- Reset grounded status
+    currentJumps = 0  -- Reset jump count
+    player.state = "alive"  -- Set the state back to "alive" after respawn
+    currentAnimation = animations.idle  -- Switch back to idle animation
+    myWaitCoroutine = nil  -- Reset the coroutine after respawn
 end
+
+
+
+
+
 
 function updateLadderMode(dt)
     local dx, dy = 0, 0
@@ -435,18 +509,51 @@ function updateGhostMode(dt)
     player.x = player.x + dx
     player.y = player.y + dy
 
-
-
     -- Timer for ghost mode duration
     ghostTimer = ghostTimer + dt
     if ghostTimer >= ghostDuration then
+        -- Exit ghost mode and check for collisions
         isGhostMode = false
         player.velocityY = 0
         currentAnimation = animations.idle  -- Revert to normal animation after ghost mode ends
+
+        -- Check for collision after ghost mode exit
+        if player.checkCollision(player.x, player.y) then
+            print("Player is inside a wall after ghost mode. Teleporting to nearest safe spot.")
+            player.teleportToNearestSafeSpot()
+        end
         print("Exited Ghost Mode")
     end
 end
 
+function player.teleportToNearestSafeSpot()
+    local searchRadius = 10  -- How far to search around the player's current position
+    local maxSearchDistance = 100  -- Limit the distance we'll search
+    local step = 10  -- Step size for checking in all directions
+
+    local startX, startY = player.x, player.y  -- Start searching from the player's current position
+
+    -- Check all positions in a growing radius around the player's current position
+    for radius = searchRadius, maxSearchDistance, step do
+        for dx = -radius, radius, step do
+            for dy = -radius, radius, step do
+                local newX, newY = startX + dx, startY + dy
+                -- Check if this new position is non-collidable
+                if not player.checkCollision(newX, newY) then
+                    -- Teleport player to the first valid position found
+                    print("Teleporting player to safe spot:", newX, newY)
+                    player.x = newX
+                    player.y = newY
+                    return  -- Exit once a valid spot is found
+                end
+            end
+        end
+    end
+
+    -- If no valid spot is found within the maximum search distance, respawn at the checkpoint
+    print("No safe spot found within search radius. Respawning player.")
+    player.respawn()  -- Respawn player at the last checkpoint if no safe spot is found
+end
 
 function player.draw()
     currentAnimation = currentAnimation or animations.idle
@@ -461,8 +568,8 @@ function player.draw()
     -- Draw the text above the player's head, if available
 if displayText then
     love.graphics.setFont(akikaFont)  -- Set Akika font
-    local textX = player.x + player.width
-    local textY = player.y - player.height - 3  -- Position above player's head
+    local textX = player.x
+    local textY = player.y - player.height  -- Position above player's head
     love.graphics.setColor(1, 1, 1, 1)  -- Set color to white
     love.graphics.print(displayText, textX, textY)
     love.graphics.setFont(love.graphics.getFont())  -- Reset font to default after drawing
@@ -529,7 +636,15 @@ function player.keypressed(key)
         player.isGhostModePossible = false  -- Reset the possibility to enter ghost mode until triggered again
         print("Entered Ghost Mode")
     end
+
+    -- Debug key to enable ghost mode anytime
+    if key == "g" and isDebugMode then
+        isGhostMode = true
+        ghostTimer = 0  -- Reset ghost timer
+        print("Entered Ghost Mode via Debug Mode")
+    end
 end
+
 
 
 
@@ -548,37 +663,5 @@ function player.handleJump()
     end
 end
 
-function player.win()
-    if not gameWon then
-        gameWon = true  -- Set the flag to true to start the winning sequence
-        love.audio.play(victorySound)  -- Play the victory sound
-    end
-end
 
-function player.updateWin(dt)
-    if gameWon then
-        -- Increase fadeAlpha over time until it's fully opaque (fadeAlpha reaches 1)
-        fadeAlpha = math.min(fadeAlpha + fadeSpeed * dt, 1)
-        
-        -- Decrease the win timer only after the screen is fully black
-        if fadeAlpha >= 1 then
-            winTimer = winTimer - dt  -- Decrease the timer
-        end
-
-        -- Close the game after the winTimer runs out
-        if winTimer <= 0 then
-            love.event.quit()  -- Close the game
-        end
-    end
-end
-
--- Draw function to blacken the screen with a fade-in effect when the game is won
-function player.drawWin()
-    if gameWon then
-        -- Draw a black rectangle over the entire screen with fadeAlpha controlling opacity
-        love.graphics.setColor(0, 0, 0, fadeAlpha)  -- Black color with fadeAlpha for transparency
-        love.graphics.rectangle("fill", 0, 0, 2000, 2000)
-        love.graphics.setColor(1, 1, 1, 1)  -- Reset color
-    end
-end
 return player
