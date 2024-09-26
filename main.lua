@@ -136,7 +136,7 @@ function love.draw()
     -- Draw the fade effect on top of everything if fading
     if isFadingIn or isFadingOut then
         love.graphics.setColor(0, 0, 0, fadeAlpha)
-        love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
+        love.graphics.rectangle("fill", 2000, 2000, screenWidth, screenHeight)
         love.graphics.setColor(1, 1, 1, 1)  -- Reset color after drawing
     end
 end
