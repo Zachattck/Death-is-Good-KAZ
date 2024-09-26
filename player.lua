@@ -4,7 +4,7 @@ local wall = {}
 local collisionLayers = {}  -- Holds different collision layers
 local cam = require("camera")  -- Initialize the camera
 -- Collision types
-local LADDER, SPIKE, SACRIFICE_ALTAR, GROUND = 1, 2, 3, 4
+local LADDER, SPIKE, SACRIFICE_ALTAR, GROUND, WIN_BED = 1, 2, 3, 4, 5
 
 -- Player properties
 local spriteSheet
@@ -22,6 +22,12 @@ local ladderSpeed = 75
 local flickerOffset = 0
 local maxJumps, currentJumps = 1, 0
 
+local victorySound  -- Declare variable for the victory sound
+local winTimer = 5 -- Time in seconds before closing the game after winning
+local gameWon = false  -- A flag to check if the game is won
+local fadeAlpha = 0  -- Alpha value for fade-in effect (0: fully transparent, 1: fully opaque)
+local fadeSpeed = 0.5  -- Speed of the fade-in effect
+
 -- Initialize player values
 function player.load()
     player.x = player.x or 400
@@ -35,6 +41,7 @@ function player.load()
     player.hitboxWidth = player.width * 0.6  -- Shrinks hitbox width by 40%
     player.hitboxHeight = player.height * 0.6  -- Shrinks hitbox height by 20%
 
+    victorySound = love.audio.newSource("assets/winSound.mp3", "static")  -- Replace with your sound file path
     -- Load the wall image
     wall.image = love.graphics.newImage("assets/mapPlatforms.png")
     wall.x = 0
@@ -58,6 +65,7 @@ function loadCollisionLayers()
     collisionLayers[LADDER] = loadCollisionData("assets/mapLadders.png")
     collisionLayers[SPIKE] = loadCollisionData("assets/mapTraps.png")
     collisionLayers[SACRIFICE_ALTAR] = loadCollisionData("assets/LVLDoors.png")
+    collisionLayers[WIN_BED] = loadCollisionData("assets/WinBed.png")
 end
 
 -- Load collision data for a specific layer
@@ -173,6 +181,7 @@ end
 function player.update(dt)
     flickerOffset = flickerOffset + (math.random(-5, 5) * dt * 10)  -- Adjust values to control speed and range
     flickerOffset = math.max(-5, math.min(flickerOffset, 5))  -- Limit the flicker offset between -10 and 10
+    print("x", player.x, "Y", player.y)
     if isGhostMode then
         updateGhostMode(dt)
     elseif player.onLadder then
@@ -180,8 +189,8 @@ function player.update(dt)
     else
         updateNormalMode(dt)
     end
-
     updateAnimation(dt)
+    player.updateWin(dt)
 end
 
 -- Update movement in normal mode
@@ -215,13 +224,17 @@ function updateNormalMode(dt)
         return
     elseif collisionType == SPIKE then
         print("Player has died! Returning to last known checkpoint.")
+        bloodsplatter.trigger(player.x, player.y)  -- Trigger blood splatter effect
         player.respawn()
         return
     elseif collisionType == SACRIFICE_ALTAR then
         isGhostMode = true
         currentAnimation = animations.ghost
         return
+    elseif collisionType == WIN_BED then
+        player.win()
     end
+
 
     -- Vertical collision
     collisionType = player.checkCollision(player.x, player.y + dy)
@@ -230,7 +243,6 @@ function updateNormalMode(dt)
         player.velocityY = 0
         player.isGrounded = true
         currentJumps = 0
-        print("Player grounded, jumps reset.")
     else
         player.isGrounded = false
     end
@@ -248,6 +260,7 @@ function updateNormalMode(dt)
         currentAnimation = animations.idle
     end
 end
+
  -- Respawn player at most recent checkpoint
 function player.respawn()
     player.x = math.max(0, player.x - 50)  -- Replace coordinates 
@@ -257,8 +270,8 @@ function player.respawn()
     currentJumps = 0  -- Reset jump count
     print("You have been respawned at the most recent checkpoint, Watch your step!:")
 end 
--- Update movement on ladder
--- Update movement on ladder with wall collision checks
+
+
 function updateLadderMode(dt)
     local dx, dy = 0, 0
     local moving = false
@@ -425,5 +438,37 @@ function player.handleJump()
         end
     end
 end
+function player.win()
+    if not gameWon then
+        gameWon = true  -- Set the flag to true to start the winning sequence
+        love.audio.play(victorySound)  -- Play the victory sound
+    end
+end
 
+function player.updateWin(dt)
+    if gameWon then
+        -- Increase fadeAlpha over time until it's fully opaque (fadeAlpha reaches 1)
+        fadeAlpha = math.min(fadeAlpha + fadeSpeed * dt, 1)
+        
+        -- Decrease the win timer only after the screen is fully black
+        if fadeAlpha >= 1 then
+            winTimer = winTimer - dt  -- Decrease the timer
+        end
+
+        -- Close the game after the winTimer runs out
+        if winTimer <= 0 then
+            love.event.quit()  -- Close the game
+        end
+    end
+end
+
+-- Draw function to blacken the screen with a fade-in effect when the game is won
+function player.drawWin()
+    if gameWon then
+        -- Draw a black rectangle over the entire screen with fadeAlpha controlling opacity
+        love.graphics.setColor(0, 0, 0, fadeAlpha)  -- Black color with fadeAlpha for transparency
+        love.graphics.rectangle("fill", 0, 0, 2000, 2000)
+        love.graphics.setColor(1, 1, 1, 1)  -- Reset color
+    end
+end
 return player
